@@ -595,7 +595,82 @@ class ReorderableList extends Component
 </style>
 ```
 
-## Example 2: Advanced Kanban Board
+## Example 2: Robust Post Reordering
+
+This example demonstrates a more complete and realistic usage that matches the event payload dispatched by the drag-and-drop component. It shows proper database integration and more robust error handling.
+
+### Livewire Component (ReorderablePosts.php)
+
+```php
+<?php
+
+namespace App\Livewire;
+
+use App\Models\Post;
+use Livewire\Component;
+use Livewire\Attributes\On;
+
+class ReorderablePosts extends Component
+{
+    public $posts;
+
+    public function mount(): void
+    {
+        $this->posts = Post::orderBy( 'position' )->get();
+    }
+
+    /**
+     * Updates the order of posts after a drag-and-drop operation.
+     *
+     * @since 1.0.0
+     *
+     * @param array $payload The event payload from the drag-and-drop component.
+     * Contains 'oldIndex', 'newIndex', etc.
+     * @return void
+     */
+    #[On( 'drag:end' )]
+    public function updateOrder( array $payload ): void
+    {
+        $postsArray = $this->posts->toArray();
+        $movedItem  = array_splice( $postsArray, $payload['oldIndex'], 1 )[0];
+        array_splice( $postsArray, $payload['newIndex'], 0, [$movedItem] );
+
+        // Update the position for each post in the database.
+        foreach ( $postsArray as $index => $post ) {
+            Post::find( $post['id'] )->update( [ 'position' => $index ] );
+        }
+
+        // Refresh the component's data.
+        $this->posts = collect( $postsArray );
+    }
+
+    public function render()
+    {
+        return view( 'livewire.reorderable-posts' );
+    }
+}
+```
+
+### Blade View (reorderable-posts.blade.php)
+
+```blade
+<div
+    x-drag-context
+    class="space-y-2"
+>
+    @foreach ( $posts as $post )
+        <div
+            wire:key="post-{{ $post->id }}"
+            x-drag-item
+            class="p-4 bg-white border rounded-md shadow cursor-grab"
+        >
+            {{ $post->title }}
+        </div>
+    @endforeach
+</div>
+```
+
+## Example 3: Advanced Kanban Board
 
 This example demonstrates a sophisticated kanban board with multiple columns and cross-column drag-and-drop functionality.
 
