@@ -153,11 +153,11 @@ export default function LivewireDragAndDrop( Alpine ) {
 				// Dispatch custom drag:end event
 				const dragEndEvent = new CustomEvent( 'drag:end', {
 					detail: {
-						group: el.getAttribute( 'x-drag-context' ) || 'default',
 						oldIndex: oldIndex,
 						newIndex: newIndex,
-						sourceElement: sourceElement,
-						targetElement: targetElement
+						group: el.getAttribute( 'x-drag-context' ) || 'default',
+						target: targetElement,
+						item: sourceElement
 					},
 					bubbles: true
 				} );
@@ -322,11 +322,11 @@ export default function LivewireDragAndDrop( Alpine ) {
 						// Dispatch custom drag:end event for keyboard navigation
 						const dragEndEvent = new CustomEvent( 'drag:end', {
 							detail: {
-								group: dragContext.getAttribute( 'x-drag-context' ) || 'default',
 								oldIndex: oldIndex,
 								newIndex: newIndex,
-								sourceElement: contextState.draggedElement || el,
-								targetElement: el
+								group: dragContext.getAttribute( 'x-drag-context' ) || 'default',
+								target: el,
+								item: contextState.draggedElement || el
 							},
 							bubbles: true
 						} );
