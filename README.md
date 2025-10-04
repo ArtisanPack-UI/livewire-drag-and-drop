@@ -655,7 +655,8 @@ class ReorderablePosts extends Component
 
 ```blade
 <div
-    x-drag-context
+    {{-- Pass the Livewire data to the context for accurate index tracking --}}
+    x-drag-context="$wire.posts"
     class="space-y-2"
 >
     @foreach ( $posts as $post )

@@ -109,6 +109,40 @@ export default function LivewireDragAndDrop( Alpine ) {
 		// Initialize context
 		el._dragContext = dragState;
 		el._announce = announce;
+		el._finalizeDrop = finalizeDrop;
+
+		// Helper function to finalize drop operations
+		const finalizeDrop = ( grabbedElement ) => {
+			if ( !grabbedElement ) return;
+
+			// Get all draggable items to calculate indices
+			const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
+			const sourceElement = grabbedElement;
+			
+			// Calculate old and new indices
+			const oldIndex = dragState.draggedData && dragState.draggedData.originalIndex !== undefined 
+				? dragState.draggedData.originalIndex 
+				: allItems.indexOf( sourceElement );
+			const newIndex = allItems.indexOf( sourceElement );
+			
+			// Dispatch custom drag:end event
+			const dragEndEvent = new CustomEvent( 'drag:end', {
+				detail: {
+					oldIndex: oldIndex,
+					newIndex: newIndex,
+					group: el.getAttribute( 'x-drag-context' ) || 'default',
+					target: sourceElement,
+					item: sourceElement
+				},
+				bubbles: true
+			} );
+			el.dispatchEvent( dragEndEvent );
+			
+			// Reset drag state
+			dragState.isDragging = false;
+			dragState.draggedElement = null;
+			dragState.draggedData = null;
+		};
 
 		// Handle dragover events for the context
 		const handleDragOver = ( e ) => {
@@ -121,47 +155,48 @@ export default function LivewireDragAndDrop( Alpine ) {
 			e.preventDefault();
 			
 			if ( dragState.draggedElement ) {
-				// Get all draggable items to calculate indices
-				const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
-				const sourceElement = dragState.draggedElement;
 				const targetElement = e.target.closest( '[x-drag-item]' ) || e.target;
 				
-				// Calculate old and new indices
-				const oldIndex = allItems.indexOf( sourceElement );
-				let newIndex = -1;
-				
-				// For drop target, find the closest drag item or use current position
-				if ( targetElement && targetElement.hasAttribute( 'x-drag-item' ) ) {
-					newIndex = allItems.indexOf( targetElement );
-				} else {
+				// Handle mouse drop positioning - move element to drop position if needed
+				if ( targetElement && targetElement.hasAttribute( 'x-drag-item' ) && targetElement !== dragState.draggedElement ) {
+					// Move the dragged element to the target position
+					const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
+					const targetIndex = allItems.indexOf( targetElement );
+					const draggedIndex = allItems.indexOf( dragState.draggedElement );
+					
+					if ( draggedIndex < targetIndex ) {
+						targetElement.parentNode.insertBefore( dragState.draggedElement, targetElement.nextSibling );
+					} else {
+						targetElement.parentNode.insertBefore( dragState.draggedElement, targetElement );
+					}
+				} else if ( !targetElement || !targetElement.hasAttribute( 'x-drag-item' ) ) {
 					// If dropped on container, find position based on mouse coordinates
+					const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
 					const rect = el.getBoundingClientRect();
 					const dropY = e.clientY - rect.top;
 					
 					// Find the item that should come after the dropped position
+					let insertBeforeElement = null;
 					for ( let i = 0; i < allItems.length; i++ ) {
+						if ( allItems[i] === dragState.draggedElement ) continue;
 						const itemRect = allItems[i].getBoundingClientRect();
 						const itemY = itemRect.top - rect.top;
 						if ( dropY < itemY + itemRect.height / 2 ) {
-							newIndex = i;
+							insertBeforeElement = allItems[i];
 							break;
 						}
 					}
-					if ( newIndex === -1 ) newIndex = allItems.length - 1;
+					
+					if ( insertBeforeElement ) {
+						insertBeforeElement.parentNode.insertBefore( dragState.draggedElement, insertBeforeElement );
+					} else {
+						// Insert at end
+						el.appendChild( dragState.draggedElement );
+					}
 				}
 				
-				// Dispatch custom drag:end event
-				const dragEndEvent = new CustomEvent( 'drag:end', {
-					detail: {
-						oldIndex: oldIndex,
-						newIndex: newIndex,
-						group: el.getAttribute( 'x-drag-context' ) || 'default',
-						target: targetElement,
-						item: sourceElement
-					},
-					bubbles: true
-				} );
-				el.dispatchEvent( dragEndEvent );
+				// Finalize the drop operation
+				finalizeDrop( dragState.draggedElement );
 				
 				// Evaluate the expression with drag data
 				const evaluateExpression = evaluateLater( expression );
@@ -171,11 +206,6 @@ export default function LivewireDragAndDrop( Alpine ) {
 					dropTarget: e.target
 				} ) );
 			}
-
-			// Reset drag state
-			dragState.isDragging = false;
-			dragState.draggedElement = null;
-			dragState.draggedData = null;
 		};
 
 		// Keyboard navigation support
@@ -314,23 +344,8 @@ export default function LivewireDragAndDrop( Alpine ) {
 						// Drop the item
 						isGrabbed = false;
 						
-						// Get all draggable items to calculate current position for keyboard drop
-						const allItems = Array.from( dragContext.querySelectorAll( '[x-drag-item]' ) );
-						const oldIndex = contextState.draggedData ? contextState.draggedData.originalIndex || allItems.indexOf( contextState.draggedElement ) : allItems.indexOf( el );
-						const newIndex = allItems.indexOf( el );
-						
-						// Dispatch custom drag:end event for keyboard navigation
-						const dragEndEvent = new CustomEvent( 'drag:end', {
-							detail: {
-								oldIndex: oldIndex,
-								newIndex: newIndex,
-								group: dragContext.getAttribute( 'x-drag-context' ) || 'default',
-								target: el,
-								item: contextState.draggedElement || el
-							},
-							bubbles: true
-						} );
-						dragContext.dispatchEvent( dragEndEvent );
+						// Finalize the drop operation using the shared helper function
+						dragContext._finalizeDrop( contextState.draggedElement || el );
 						
 						el.setAttribute( 'aria-grabbed', 'false' );
 						el.setAttribute( 'aria-pressed', 'false' );
@@ -339,11 +354,6 @@ export default function LivewireDragAndDrop( Alpine ) {
 						// Trigger drop event
 						const dropEvent = new Event( 'drop', { bubbles: true } );
 						el.dispatchEvent( dropEvent );
-						
-						// Reset state
-						contextState.isDragging = false;
-						contextState.draggedElement = null;
-						contextState.draggedData = null;
 					}
 					break;
 					
