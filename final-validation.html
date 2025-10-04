@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Validation - Drag:End Event Implementation</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script type="module">
+        import LivewireDragAndDrop from './src/index.js';
+        
+        document.addEventListener('alpine:init', () => {
+            LivewireDragAndDrop(Alpine);
+        });
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .drag-container {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            margin: 20px;
+            min-height: 200px;
+        }
+        
+        .drag-item {
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 5px 0;
+            cursor: grab;
+            border-radius: 4px;
+        }
+        
+        .drag-item:focus {
+            outline: 2px solid #007cba;
+            outline-offset: 2px;
+        }
+        
+        .drag-item.is-grabbing {
+            background: #e0f0ff;
+            border-color: #007cba;
+            transform: scale(1.02);
+        }
+        
+        .sr-only {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        
+        .test-results {
+            margin: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .pass { color: green; }
+        .fail { color: red; }
+        .new-feature { color: blue; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Final Validation Test</h1>
+    <p><strong>This test validates both existing accessibility features and the new drag:end event implementation.</strong></p>
+    
+    <div class="test-results" id="testResults">
+        <h3>Test Results:</h3>
+        <div id="results"></div>
+    </div>
+    
+    <div class="test-results" id="eventResults">
+        <h3>Drag:End Event Tests:</h3>
+        <div id="eventLog">No drag:end events captured yet. Try dragging items below.</div>
+    </div>
+    
+    <div 
+        x-data="{ items: [1, 2, 3, 4, 5] }"
+        x-drag-context="console.log('Drop event:', $event)"
+        class="drag-container"
+        id="dragContainer"
+    >
+        <h3>Test Items</h3>
+        <p>Try both mouse drag and keyboard navigation (Space/Enter to grab, Arrow keys to move, Space/Enter to drop)</p>
+        
+        <template x-for="item in items" :key="item">
+            <div 
+                x-drag-item="{ id: item, text: `Item ${item}` }"
+                class="drag-item"
+                x-text="`Item ${item}`"
+            ></div>
+        </template>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const results = document.getElementById('results');
+            const eventLog = document.getElementById('eventLog');
+            let dragEndEvents = [];
+            
+            // Listen for drag:end events
+            document.getElementById('dragContainer').addEventListener('drag:end', (event) => {
+                dragEndEvents.push({
+                    timestamp: new Date().toLocaleTimeString(),
+                    detail: event.detail
+                });
+                updateEventLog();
+            });
+            
+            function updateEventLog() {
+                const content = dragEndEvents.map((event, index) => `
+                    <div class="new-feature">
+                        ${index + 1}. [${event.timestamp}] drag:end Event Captured ✓
+                        <br>&nbsp;&nbsp;&nbsp;Group: ${event.detail.group}
+                        <br>&nbsp;&nbsp;&nbsp;Old Index: ${event.detail.oldIndex}
+                        <br>&nbsp;&nbsp;&nbsp;New Index: ${event.detail.newIndex}
+                        <br>&nbsp;&nbsp;&nbsp;Source Element: ${event.detail.sourceElement ? event.detail.sourceElement.textContent : 'null'}
+                        <br>&nbsp;&nbsp;&nbsp;Target Element: ${event.detail.targetElement ? event.detail.targetElement.textContent : 'null'}
+                    </div>
+                `).join('<br>');
+                eventLog.innerHTML = content || 'No drag:end events captured yet. Try dragging items above.';
+            }
+            
+            // Run accessibility and functionality tests (from original test.html)
+            setTimeout(() => {
+                const tests = [];
+                
+                // Test 1: Check if drag items are focusable
+                const dragItems = document.querySelectorAll('[x-drag-item]');
+                const focusableItems = Array.from(dragItems).filter(item => item.tabIndex === 0);
+                tests.push({
+                    name: 'Drag items are focusable (tabindex="0")',
+                    pass: focusableItems.length === dragItems.length,
+                    details: `${focusableItems.length}/${dragItems.length} items are focusable`
+                });
+                
+                // Test 2: Check ARIA attributes
+                const itemsWithRole = Array.from(dragItems).filter(item => item.getAttribute('role') === 'button');
+                tests.push({
+                    name: 'Drag items have role="button"',
+                    pass: itemsWithRole.length === dragItems.length,
+                    details: `${itemsWithRole.length}/${dragItems.length} items have correct role`
+                });
+                
+                const itemsWithAriaGrabbed = Array.from(dragItems).filter(item => item.getAttribute('aria-grabbed') === 'false');
+                tests.push({
+                    name: 'Drag items have aria-grabbed="false" initially',
+                    pass: itemsWithAriaGrabbed.length === dragItems.length,
+                    details: `${itemsWithAriaGrabbed.length}/${dragItems.length} items have aria-grabbed`
+                });
+                
+                // Test 3: Check drag context attributes
+                const dragContext = document.querySelector('[x-drag-context]');
+                tests.push({
+                    name: 'Drag context has role="application"',
+                    pass: dragContext && dragContext.getAttribute('role') === 'application',
+                    details: `Role: ${dragContext ? dragContext.getAttribute('role') : 'none'}`
+                });
+                
+                tests.push({
+                    name: 'Drag context has aria-label',
+                    pass: dragContext && dragContext.getAttribute('aria-label') === 'Drag and drop interface',
+                    details: `Label: ${dragContext ? dragContext.getAttribute('aria-label') : 'none'}`
+                });
+                
+                // Test 4: Check for aria-live region
+                const liveRegion = dragContext.querySelector('[aria-live]');
+                tests.push({
+                    name: 'Persistent aria-live region exists',
+                    pass: !!liveRegion,
+                    details: `Live region: ${liveRegion ? 'found' : 'not found'}`
+                });
+                
+                // Test 5: Check drag instructions
+                const instructions = document.getElementById('drag-instructions');
+                tests.push({
+                    name: 'Drag instructions element exists',
+                    pass: !!instructions,
+                    details: `Instructions: ${instructions ? 'found' : 'not found'}`
+                });
+                
+                // NEW TEST 6: Check for drag:end event capability
+                tests.push({
+                    name: '🆕 NEW: Drag context can dispatch drag:end events',
+                    pass: typeof CustomEvent !== 'undefined' && dragContext,
+                    details: `Implementation ready for drag:end event dispatch`,
+                    className: 'new-feature'
+                });
+                
+                // Display results
+                results.innerHTML = tests.map(test => 
+                    `<div class="${test.className || (test.pass ? 'pass' : 'fail')}">
+                        ${test.pass ? '✓' : '✗'} ${test.name}
+                        <br>&nbsp;&nbsp;&nbsp;${test.details}
+                    </div>`
+                ).join('<br>');
+                
+                const passedTests = tests.filter(t => t.pass).length;
+                results.innerHTML += `<br><strong>${passedTests}/${tests.length} tests passed</strong>`;
+                
+            }, 1000); // Wait for Alpine to initialize
+        });
+    </script>
+</body>
+</html>

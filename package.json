@@ -1,0 +1,45 @@
+{
+  "name": "@artisanpack-ui/livewire-drag-and-drop",
+  "version": "1.0.0",
+  "description": "An accessibility-first drag-and-drop utility for Livewire and Alpine.js.",
+  "keywords": [
+    "livewire",
+    "laravel-livewire",
+    "alpine",
+    "alpinejs",
+    "laravel",
+    "tall-stack",
+    "drag-and-drop",
+    "sortable",
+    "kanban",
+    "accessible",
+    "accessibility",
+    "a11y",
+    "artisanpack-ui"
+  ],
+  "homepage": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop#readme",
+  "bugs": {
+    "url": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop.git"
+  },
+  "license": "MIT",
+  "author": "Jacob Martella",
+  "type": "module",
+  "main": "dist/livewire-drag-and-drop.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^7.1.9"
+  },
+  "dependencies": {
+    "alpinejs": "^3.15.0"
+  }
+}

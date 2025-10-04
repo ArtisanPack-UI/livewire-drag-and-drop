@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Drag:End Event Implementation</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script type="module">
+        import LivewireDragAndDrop from './src/index.js';
+        
+        document.addEventListener('alpine:init', () => {
+            LivewireDragAndDrop(Alpine);
+        });
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .drag-container {
+            border: 2px dashed #007cba;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 150px;
+            background: #f8f9fa;
+        }
+        
+        .drag-item {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            margin: 8px 0;
+            cursor: grab;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .drag-item:hover {
+            border-color: #007cba;
+            box-shadow: 0 2px 4px rgba(0,123,186,0.1);
+        }
+        
+        .drag-item.is-grabbing {
+            background: #e7f3ff;
+            border-color: #007cba;
+            transform: scale(1.02);
+            box-shadow: 0 4px 8px rgba(0,123,186,0.2);
+        }
+        
+        .results {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .info { color: #007bff; }
+        
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Verify Drag:End Event Implementation</h1>
+    
+    <div class="test-section">
+        <h3>Test Instructions:</h3>
+        <p><strong>Mouse:</strong> Try dragging items between positions</p>
+        <p><strong>Keyboard:</strong> Focus an item, press Space/Enter to grab, use arrow keys to move, press Space/Enter to drop</p>
+    </div>
+    
+    <div class="results" id="results">
+        <h4>Event Results:</h4>
+        <div id="eventLog">Waiting for drag operations...</div>
+    </div>
+    
+    <div 
+        x-data="{ items: ['Task A', 'Task B', 'Task C', 'Task D', 'Task E'] }"
+        x-drag-context="console.log('Alpine drop handler called:', $event)"
+        class="drag-container"
+        id="testContainer"
+    >
+        <h3>Draggable Items</h3>
+        
+        <template x-for="(item, index) in items" :key="item">
+            <div 
+                x-drag-item="{ id: index, text: item, type: 'task' }"
+                class="drag-item"
+                x-text="item"
+                tabindex="0"
+            ></div>
+        </template>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const eventLog = document.getElementById('eventLog');
+            let events = [];
+            
+            function logEvent(type, data) {
+                const timestamp = new Date().toLocaleTimeString();
+                events.push({ type, data, timestamp });
+                updateDisplay();
+            }
+            
+            function updateDisplay() {
+                const content = events.map((event, index) => {
+                    const className = event.type === 'drag:end' ? 'success' : 
+                                    event.type === 'error' ? 'error' : 'info';
+                    
+                    return `
+                        <div class="${className}">
+                            ${index + 1}. [${event.timestamp}] ${event.type.toUpperCase()}
+                            ${event.data ? '<br>' + JSON.stringify(event.data, null, 2) : ''}
+                        </div>
+                    `;
+                }).join('<br>');
+                
+                eventLog.innerHTML = content || 'No events recorded yet...';
+            }
+            
+            // Listen for drag:end events
+            document.getElementById('testContainer').addEventListener('drag:end', (event) => {
+                logEvent('drag:end', event.detail);
+                
+                // Validate the payload structure
+                const detail = event.detail;
+                const requiredFields = ['group', 'oldIndex', 'newIndex', 'sourceElement', 'targetElement'];
+                const missingFields = requiredFields.filter(field => !(field in detail));
+                
+                if (missingFields.length > 0) {
+                    logEvent('error', `Missing required fields: ${missingFields.join(', ')}`);
+                } else {
+                    logEvent('validation', 'All required payload fields present ✓');
+                }
+            });
+            
+            // Listen for standard HTML drag events for comparison
+            document.getElementById('testContainer').addEventListener('drop', (event) => {
+                logEvent('html-drop', 'Standard HTML drop event fired');
+            });
+            
+            // Listen for dragstart for reference
+            document.getElementById('testContainer').addEventListener('dragstart', (event) => {
+                logEvent('html-dragstart', 'Standard HTML dragstart event fired');
+            });
+            
+            // Initial message
+            setTimeout(() => {
+                logEvent('info', 'Test page loaded. Try dragging items to test the drag:end event implementation.');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+# Set default behavior to automatically normalize line endings
+* text=auto eol=lf
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout
+*.js text eol=lf
+*.ts text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.htm text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.sass text eol=lf
+*.less text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.svg text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Configuration files
+*.config.js text eol=lf
+*.config.ts text eol=lf
+*.config.json text eol=lf
+.babelrc text eol=lf
+.editorconfig text eol=lf
+.eslintrc* text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.prettierrc* text eol=lf
+tsconfig*.json text eol=lf
+vite.config.* text eol=lf
+package.json text eol=lf
+package-lock.json text eol=lf
+yarn.lock text eol=lf
+pnpm-lock.yaml text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+README* text eol=lf
+CHANGELOG* text eol=lf
+LICENSE* text eol=lf
+CONTRIBUTING* text eol=lf
+
+# Declare files that will always have CRLF line endings on checkout
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.mp3 binary
+*.flv binary
+*.fla binary
+*.swf binary
+*.gz binary
+*.zip binary
+*.7z binary
+*.ttf binary
+*.eot binary
+*.woff binary
+*.woff2 binary
+*.pyc binary
+*.pdf binary
+*.ez binary
+*.bz2 binary
+*.swp binary
+*.jar binary
+*.class binary
+
+# Archive files
+*.tar binary
+*.tgz binary
+*.rar binary
+
+# Fonts
+*.otf binary
+*.ttc binary
+
+# Images
+*.webp binary
+*.bmp binary
+*.tiff binary
+*.tif binary
+
+# Video
+*.webm binary
+*.avi binary
+*.mkv binary
+
+# Audio
+*.wav binary
+*.ogg binary
+*.flac binary
+*.aac binary
+
+# Documents
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# Set linguist attributes for language detection
+*.js linguist-language=JavaScript
+*.ts linguist-language=TypeScript
+*.jsx linguist-language=JavaScript
+*.tsx linguist-language=TypeScript
+*.html linguist-language=HTML
+*.css linguist-language=CSS
+*.scss linguist-language=SCSS
+*.md linguist-language=Markdown
+
+# Files to exclude from language statistics
+docs/* linguist-documentation
+*.md linguist-documentation
+test*.html linguist-generated
+verify*.html linguist-generated
+final-validation.html linguist-generated
+dist/* linguist-generated
+node_modules/* linguist-vendored
