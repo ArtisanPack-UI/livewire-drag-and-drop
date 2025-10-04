@@ -23,12 +23,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop.git"
+    "url": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop.git"
   },
   "license": "MIT",
   "author": "Jacob Martella",
   "type": "module",
-  "main": "dist/livewire-drag-and-drop.js",
+  "main": "dist/livewire-drag-and-drop.umd.js",
+  "module": "dist/livewire-drag-and-drop.esm.js",
   "directories": {
     "doc": "docs"
   },
