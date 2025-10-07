@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reproduce ReferenceError</title>
+    <style>
+        .drag-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            cursor: grab;
+        }
+        .drag-item:active {
+            cursor: grabbing;
+        }
+        .is-dragging {
+            opacity: 0.5;
+        }
+        .sr-only {
+            position: absolute;
+            left: -10000px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Drag and Drop - Reproduce Error</h1>
+    
+    <div x-data="{}" x-drag-context="">
+        <div class="drag-item" x-drag-item="{id: 1, title: 'Item 1'}">Item 1</div>
+        <div class="drag-item" x-drag-item="{id: 2, title: 'Item 2'}">Item 2</div>
+        <div class="drag-item" x-drag-item="{id: 3, title: 'Item 3'}">Item 3</div>
+    </div>
+
+    <script type="module">
+        // Simulate the admin.js setup that causes the error
+        import Alpine from './node_modules/alpinejs/dist/module.esm.js';
+        
+        // Import the livewire-drag-and-drop module directly from src
+        // This should cause the ReferenceError: Cannot access uninitialized variable
+        import LivewireDragAndDrop from './src/index.js';
+
+        console.log('Admin loaded');
+        
+        try {
+            LivewireDragAndDrop(Alpine);
+            console.log('LivewireDragAndDrop initialized successfully');
+        } catch (error) {
+            console.error('Error initializing LivewireDragAndDrop:', error);
+        }
+
+        Alpine.start();
+        console.log('Alpine started');
+    </script>
+</body>
+</html>

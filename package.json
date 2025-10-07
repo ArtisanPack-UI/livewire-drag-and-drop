@@ -29,7 +29,7 @@
   "author": "Jacob Martella",
   "type": "module",
   "main": "dist/livewire-drag-and-drop.umd.js",
-  "module": "dist/livewire-drag-and-drop.esm.js",
+  "module": "dist/livewire-drag-and-drop.es.js",
   "directories": {
     "doc": "docs"
   },
