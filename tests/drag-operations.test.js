@@ -1,6 +1,6 @@
 /**
  * Drag and Drop Operations Tests
- * 
+ *
  * Tests mouse drag and drop operations, DOM manipulation,
  * event handling, and state management during drag operations.
  */
@@ -18,25 +18,25 @@ describe('Drag and Drop Operations', () => {
   beforeEach(() => {
     mockAlpine = global.testUtils.createMockAlpine();
     LivewireDragAndDrop(mockAlpine);
-    
+
     const directives = mockAlpine._getDirectives();
     dragContextHandler = directives.get('drag-context');
     dragItemHandler = directives.get('drag-item');
-    
+
     // Create drag context with items
     dragContext = global.testUtils.createDragContext(['Item 1', 'Item 2', 'Item 3']);
-    
+
     // Initialize drag context
     dragContextHandler(dragContext, { expression: '' }, {
       evaluate: jest.fn(),
       evaluateLater: jest.fn(() => jest.fn())
     });
-    
+
     // Initialize drag items
     dragItems = Array.from(dragContext.children);
     dragItems.forEach((item, index) => {
       mockAlpine.nextTick(() => {
-        dragItemHandler(item, 
+        dragItemHandler(item,
           { expression: `{ id: ${index + 1}, text: "${item.textContent}" }` },
           { evaluate: jest.fn(() => ({ id: index + 1, text: item.textContent })) }
         );
@@ -48,9 +48,9 @@ describe('Drag and Drop Operations', () => {
     test('should set dragging state when drag starts', async () => {
       await mockAlpine.nextTick();
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
-      
+
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       const contextState = dragContext._dragContext;
       expect(contextState.isDragging).toBe(true);
       expect(contextState.draggedElement).toBe(dragItems[0]);
@@ -61,9 +61,9 @@ describe('Drag and Drop Operations', () => {
     test('should set proper ARIA attributes during drag start', async () => {
       await mockAlpine.nextTick();
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
-      
+
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       expect(dragItems[0].getAttribute('aria-grabbed')).toBe('true');
       expect(dragItems[0].getAttribute('aria-pressed')).toBe('true');
       expect(dragItems[0].classList.contains('is-grabbing')).toBe(true);
@@ -73,9 +73,9 @@ describe('Drag and Drop Operations', () => {
     test('should set dataTransfer properties', async () => {
       await mockAlpine.nextTick();
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
-      
+
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       expect(dragStartEvent.dataTransfer.effectAllowed).toBe('move');
       expect(dragStartEvent.dataTransfer.setData).toHaveBeenCalledWith(
         'text/plain',
@@ -87,9 +87,9 @@ describe('Drag and Drop Operations', () => {
       await mockAlpine.nextTick();
       const announceSpy = jest.spyOn(dragContext, '_announce');
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
-      
+
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       expect(announceSpy).toHaveBeenCalledWith('Item grabbed for dragging', 'assertive');
     });
   });
@@ -97,15 +97,15 @@ describe('Drag and Drop Operations', () => {
   describe('Mouse Drag End', () => {
     test('should reset state when drag ends', async () => {
       await mockAlpine.nextTick();
-      
+
       // Start drag
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       // End drag
       const dragEndEvent = global.testUtils.createDragEvent('dragend');
       dragItems[0].dispatchEvent(dragEndEvent);
-      
+
       expect(dragItems[0].getAttribute('aria-grabbed')).toBe('false');
       expect(dragItems[0].getAttribute('aria-pressed')).toBe('false');
       expect(dragItems[0].classList.contains('is-grabbing')).toBe(false);
@@ -114,15 +114,15 @@ describe('Drag and Drop Operations', () => {
 
     test('should clean up drag context state', async () => {
       await mockAlpine.nextTick();
-      
+
       // Start drag
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       // End drag
       const dragEndEvent = global.testUtils.createDragEvent('dragend');
       dragItems[0].dispatchEvent(dragEndEvent);
-      
+
       const contextState = dragContext._dragContext;
       expect(contextState.isDragging).toBe(false);
       expect(contextState.draggedElement).toBeNull();
@@ -132,11 +132,11 @@ describe('Drag and Drop Operations', () => {
     test('should announce drag end to screen readers', async () => {
       await mockAlpine.nextTick();
       const announceSpy = jest.spyOn(dragContext, '_announce');
-      
+
       // Start and end drag
       dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
       dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragend'));
-      
+
       expect(announceSpy).toHaveBeenCalledWith('Item released');
     });
   });
@@ -145,26 +145,26 @@ describe('Drag and Drop Operations', () => {
     test('should prevent default on dragover', () => {
       const dragOverEvent = global.testUtils.createDragEvent('dragover');
       const preventDefaultSpy = jest.spyOn(dragOverEvent, 'preventDefault');
-      
+
       dragContext.dispatchEvent(dragOverEvent);
-      
+
       expect(preventDefaultSpy).toHaveBeenCalled();
       expect(dragOverEvent.dataTransfer.dropEffect).toBe('move');
     });
 
     test('should reorder items when dropped on specific item', async () => {
       await mockAlpine.nextTick();
-      
+
       // Start dragging first item
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
       dragItems[0].dispatchEvent(dragStartEvent);
-      
+
       // Drop on third item
       const dropEvent = global.testUtils.createDragEvent('drop', {
         target: dragItems[2]
       });
       dragContext.dispatchEvent(dropEvent);
-      
+
       // Check if items were reordered
       const updatedItems = Array.from(dragContext.children);
       expect(updatedItems[1]).toBe(dragItems[0]); // First item moved to second position
@@ -172,10 +172,10 @@ describe('Drag and Drop Operations', () => {
 
     test('should handle drop on empty space', async () => {
       await mockAlpine.nextTick();
-      
+
       // Start dragging first item
       dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
-      
+
       // Mock getBoundingClientRect for positioning calculation
       dragContext.getBoundingClientRect = jest.fn(() => ({
         top: 0,
@@ -189,14 +189,14 @@ describe('Drag and Drop Operations', () => {
         top: 100,
         height: 30
       }));
-      
+
       // Drop on empty space between items
       const dropEvent = global.testUtils.createDragEvent('drop', {
         target: dragContext,
         clientY: 75
       });
       dragContext.dispatchEvent(dropEvent);
-      
+
       // Should position item based on drop location
       expect(dragContext._finalizeDrop).toBeDefined();
     });
@@ -205,14 +205,14 @@ describe('Drag and Drop Operations', () => {
       await mockAlpine.nextTick();
       const eventSpy = jest.fn();
       dragContext.addEventListener('drag:end', eventSpy);
-      
+
       // Start and complete drag operation
       dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
       const dropEvent = global.testUtils.createDragEvent('drop', {
         target: dragItems[1]
       });
       dragContext.dispatchEvent(dropEvent);
-      
+
       expect(eventSpy).toHaveBeenCalled();
       const eventDetail = eventSpy.mock.calls[0][0].detail;
       expect(eventDetail.oldIndex).toBe(0);
@@ -223,20 +223,20 @@ describe('Drag and Drop Operations', () => {
     test('should execute expression callback on drop', async () => {
       await mockAlpine.nextTick();
       const evaluateExpressionMock = jest.fn();
-      
+
       // Re-initialize with expression
       dragContextHandler(dragContext, { expression: 'handleDrop($event)' }, {
         evaluate: jest.fn(),
         evaluateLater: jest.fn(() => evaluateExpressionMock)
       });
-      
+
       // Start and complete drag operation
       dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
       const dropEvent = global.testUtils.createDragEvent('drop', {
         target: dragItems[1]
       });
       dragContext.dispatchEvent(dropEvent);
-      
+
       expect(evaluateExpressionMock).toHaveBeenCalled();
     });
   });
@@ -244,20 +244,20 @@ describe('Drag and Drop Operations', () => {
   describe('Focus Management', () => {
     test('should add is-focused class on focus', async () => {
       await mockAlpine.nextTick();
-      
+
       const focusEvent = new Event('focus');
       dragItems[0].dispatchEvent(focusEvent);
-      
+
       expect(dragItems[0].classList.contains('is-focused')).toBe(true);
     });
 
     test('should remove is-focused class on blur', async () => {
       await mockAlpine.nextTick();
-      
+
       // Add focus first
       dragItems[0].dispatchEvent(new Event('focus'));
       expect(dragItems[0].classList.contains('is-focused')).toBe(true);
-      
+
       // Then blur
       dragItems[0].dispatchEvent(new Event('blur'));
       expect(dragItems[0].classList.contains('is-focused')).toBe(false);
@@ -271,12 +271,12 @@ describe('Drag and Drop Operations', () => {
       contextState.isDragging = true;
       contextState.draggedElement = dragItems[0];
       contextState.draggedData = { test: true };
-      
+
       const announceSpy = jest.spyOn(dragContext, '_announce');
       const escapeEvent = global.testUtils.createKeyboardEvent('keydown', 'Escape');
-      
+
       dragContext.dispatchEvent(escapeEvent);
-      
+
       expect(contextState.isDragging).toBe(false);
       expect(contextState.draggedElement).toBeNull();
       expect(contextState.draggedData).toBeNull();
@@ -286,9 +286,9 @@ describe('Drag and Drop Operations', () => {
     test('should not cancel if not dragging', () => {
       const announceSpy = jest.spyOn(dragContext, '_announce');
       const escapeEvent = global.testUtils.createKeyboardEvent('keydown', 'Escape');
-      
+
       dragContext.dispatchEvent(escapeEvent);
-      
+
       expect(announceSpy).not.toHaveBeenCalled();
     });
   });
@@ -297,25 +297,25 @@ describe('Drag and Drop Operations', () => {
     test('should handle missing drag context gracefully', async () => {
       await mockAlpine.nextTick();
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      
+
       const orphanItem = document.createElement('div');
       document.body.appendChild(orphanItem);
-      
+
       // Should not throw error
       expect(() => {
-        dragItemHandler(orphanItem, 
+        dragItemHandler(orphanItem,
           { expression: '{ id: 1 }' },
           { evaluate: jest.fn(() => ({ id: 1 })) }
         );
       }).not.toThrow();
-      
+
       expect(consoleSpy).toHaveBeenCalledWith('x-drag-item must be used within x-drag-context');
       consoleSpy.mockRestore();
     });
 
     test('should handle drop without dragged element', () => {
       const dropEvent = global.testUtils.createDragEvent('drop');
-      
+
       // Should not throw error
       expect(() => {
         dragContext.dispatchEvent(dropEvent);
@@ -325,9 +325,9 @@ describe('Drag and Drop Operations', () => {
     test('should handle drag start without proper context setup', () => {
       const newItem = document.createElement('div');
       dragContext.appendChild(newItem);
-      
+
       const dragStartEvent = global.testUtils.createDragEvent('dragstart');
-      
+
       // Should not throw error
       expect(() => {
         newItem.dispatchEvent(dragStartEvent);
