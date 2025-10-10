@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fixed Implementation</title>
+    <style>
+        .drag-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            cursor: grab;
+        }
+        .drag-item:active {
+            cursor: grabbing;
+        }
+        .is-dragging {
+            opacity: 0.5;
+        }
+        .is-grabbing {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .sr-only {
+            position: absolute;
+            left: -10000px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+        .space-y-4 > * + * {
+            margin-top: 1rem;
+        }
+        .bg-base-100 {
+            background-color: #ffffff;
+        }
+        .p-4 {
+            padding: 1rem;
+        }
+        .rounded-lg {
+            border-radius: 0.5rem;
+        }
+        .shadow-md {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .text-xl {
+            font-size: 1.25rem;
+        }
+        .font-semibold {
+            font-weight: 600;
+        }
+        .text-gray-600 {
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Fixed Implementation - Should Work Without Errors</h1>
+    
+    <!-- This reproduces the exact setup from user's dashboard.blade.php with the fixed src/index.js -->
+    <div class="space-y-4"
+         x-data=""
+         x-drag-context>
+        
+        <div class="bg-base-100 p-4 rounded-lg shadow-md drag-item"
+             x-drag-item="{id: 1, name: 'Item 1', description: 'First item'}">
+            <h2 class="text-xl font-semibold">Item 1</h2>
+            <p class="text-gray-600">First item</p>
+        </div>
+        
+        <div class="bg-base-100 p-4 rounded-lg shadow-md drag-item"
+             x-drag-item="{id: 2, name: 'Item 2', description: 'Second item'}">
+            <h2 class="text-xl font-semibold">Item 2</h2>
+            <p class="text-gray-600">Second item</p>
+        </div>
+        
+        <div class="bg-base-100 p-4 rounded-lg shadow-md drag-item"
+             x-drag-item="{id: 3, name: 'Item 3', description: 'Third item'}">
+            <h2 class="text-xl font-semibold">Item 3</h2>
+            <p class="text-gray-600">Third item</p>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 10px; background: #f5f5f5; border: 1px solid #ddd;">
+        <h3>Instructions:</h3>
+        <ul>
+            <li><strong>Mouse:</strong> Drag and drop items to reorder them</li>
+            <li><strong>Keyboard:</strong> Focus an item, press Space/Enter to grab, use arrow keys to move, Space/Enter to drop</li>
+        </ul>
+    </div>
+
+    <div id="success-log" style="margin-top: 20px; padding: 10px; background: #e8f5e8; border: 1px solid #4caf50;">
+        <h3>Success/Info Log:</h3>
+        <div id="success-messages"></div>
+    </div>
+
+    <div id="error-log" style="margin-top: 20px; padding: 10px; background: #ffebee; border: 1px solid #f44336;">
+        <h3>Error/Warning Log:</h3>
+        <div id="error-messages"></div>
+    </div>
+
+    <script type="module">
+        // Capture console errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const errorDiv = document.getElementById('error-messages');
+            errorDiv.innerHTML += `<p style="color: #f44336; margin: 5px 0;">[ERROR] ${args.join(' ')}</p>`;
+        };
+
+        // Capture console warnings  
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            const errorDiv = document.getElementById('error-messages');
+            errorDiv.innerHTML += `<p style="color: #ff9800; margin: 5px 0;">[WARNING] ${args.join(' ')}</p>`;
+        };
+
+        // Capture console logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const successDiv = document.getElementById('success-messages');
+            successDiv.innerHTML += `<p style="color: #2196f3; margin: 5px 0;">[INFO] ${args.join(' ')}</p>`;
+        };
+
+        import Alpine from './node_modules/alpinejs/dist/module.esm.js';
+        import LivewireDragAndDrop from './src/index.js';
+
+        try {
+            LivewireDragAndDrop(Alpine);
+            Alpine.start();
+            console.log('✅ Alpine and LivewireDragAndDrop initialized successfully');
+            
+            // Add drag:end event listener to test the functionality
+            document.addEventListener('drag:end', (e) => {
+                console.log('✅ drag:end event fired:', {
+                    oldIndex: e.detail.oldIndex,
+                    newIndex: e.detail.newIndex,
+                    item: e.detail.item?.textContent?.trim() || 'Unknown item'
+                });
+            });
+            
+            const successDiv = document.getElementById('success-messages');
+            successDiv.innerHTML += '<p style="color: #4caf50; margin: 5px 0;">✅ No Alpine.js expression errors detected! The fix is working.</p>';
+            
+        } catch (error) {
+            console.error('Error during initialization:', error);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Index Fix - oldIndex vs newIndex</title>
+    <style>
+        .drag-item {
+            padding: 15px;
+            margin: 8px 0;
+            background: #f0f0f0;
+            border: 2px solid #ccc;
+            cursor: grab;
+            border-radius: 4px;
+            font-weight: bold;
+            position: relative;
+        }
+        .drag-item:active {
+            cursor: grabbing;
+        }
+        .is-dragging {
+            opacity: 0.5;
+            background: #e0e0e0;
+            border-color: #007acc;
+        }
+        .is-grabbing {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+        .sr-only {
+            position: absolute;
+            left: -10000px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .log {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 8px;
+            border-left: 4px solid #007acc;
+            background: white;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .success {
+            border-left-color: #4caf50;
+            background: #e8f5e8;
+        }
+        .debug {
+            border-left-color: #ff9800;
+            background: #fff3e0;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verify Index Fix: oldIndex vs newIndex</h1>
+        
+        <div class="instructions">
+            <h3>Test Instructions:</h3>
+            <p><strong>Mouse:</strong> Drag items to different positions and check the log.</p>
+            <p><strong>Keyboard:</strong> Focus an item, press Space to grab, use arrow keys to move, press Space to drop.</p>
+            <p><strong>Expected:</strong> oldIndex should show original position, newIndex should show final position.</p>
+        </div>
+        
+        <div class="space-y-4" 
+             x-data="{
+                 handleDrop: (event) => {
+                     console.log('=== DRAG END EVENT ===');
+                     console.log('Full event:', event);
+                     console.log('Event detail:', event.detail);
+                     
+                     const { oldIndex, newIndex, target } = event.detail;
+                     
+                     // Get item identifier for better logging
+                     const itemText = target.textContent || 'Unknown Item';
+                     
+                     console.log('oldIndex:', oldIndex);
+                     console.log('newIndex:', newIndex);
+                     console.log('Item:', itemText);
+                     
+                     // Log detailed result
+                     logDetailedResult(oldIndex, newIndex, itemText, event.detail);
+                     
+                     if (oldIndex !== newIndex) {
+                         console.log('✅ SUCCESS: Indices are different');
+                     } else {
+                         console.error('❌ BUG: oldIndex and newIndex are still the same!');
+                     }
+                     
+                     console.log('======================');
+                 }
+             }" 
+             x-drag-context 
+             @drag:end="handleDrop($event)" 
+             role="application" 
+             aria-label="Test drag and drop interface">
+            
+            <div class="drag-item" x-drag-item="{id: 1, title: 'Item 1'}" tabindex="0">
+                <strong>Item 1</strong> - Original Position: 0
+            </div>
+            <div class="drag-item" x-drag-item="{id: 2, title: 'Item 2'}" tabindex="0">
+                <strong>Item 2</strong> - Original Position: 1
+            </div>
+            <div class="drag-item" x-drag-item="{id: 3, title: 'Item 3'}" tabindex="0">
+                <strong>Item 3</strong> - Original Position: 2
+            </div>
+            <div class="drag-item" x-drag-item="{id: 4, title: 'Item 4'}" tabindex="0">
+                <strong>Item 4</strong> - Original Position: 3
+            </div>
+            <div class="drag-item" x-drag-item="{id: 5, title: 'Item 5'}" tabindex="0">
+                <strong>Item 5</strong> - Original Position: 4
+            </div>
+        </div>
+
+        <div class="log">
+            <h3>Detailed Test Results:</h3>
+            <button onclick="clearLog()" style="margin-bottom: 10px; padding: 5px 10px;">Clear Log</button>
+            <div id="log-entries"></div>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+            <h3>Debug Information:</h3>
+            <p><strong>Fix Applied:</strong> Modified handleDragStart to capture originalIndex before DOM manipulation</p>
+            <p><strong>Expected Result:</strong> oldIndex should be different from newIndex when items are moved</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li>Drag Item 1 to position 2 → oldIndex: 0, newIndex: 1</li>
+                <li>Drag Item 3 to first position → oldIndex: 2, newIndex: 0</li>
+                <li>Use keyboard navigation to move items</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        // Function to log detailed drag results
+        window.logDetailedResult = function(oldIndex, newIndex, itemText, eventDetail) {
+            const logEntries = document.getElementById('log-entries');
+            const entry = document.createElement('div');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            // Check if the fix worked
+            const isFixed = oldIndex !== newIndex;
+            
+            entry.className = `log-entry ${isFixed ? 'success' : 'error'}`;
+            entry.innerHTML = `
+                <div><strong>[${timestamp}] ${isFixed ? '✅ SUCCESS' : '❌ BUG STILL EXISTS'}</strong></div>
+                <div><strong>Item:</strong> ${itemText}</div>
+                <div><strong>oldIndex:</strong> ${oldIndex} | <strong>newIndex:</strong> ${newIndex}</div>
+                ${isFixed ? 
+                    `<div style="color: #2e7d32;">✅ Correctly different indices! Movement: ${oldIndex} → ${newIndex}</div>` :
+                    `<div style="color: #d32f2f;">❌ Indices are the same! Both are: ${oldIndex}</div>`
+                }
+                <details style="margin-top: 5px;">
+                    <summary style="cursor: pointer; color: #666;">View Full Event Detail</summary>
+                    <pre style="background: #f5f5f5; padding: 8px; margin: 5px 0; border-radius: 3px; font-size: 10px; overflow-x: auto;">${JSON.stringify(eventDetail, null, 2)}</pre>
+                </details>
+            `;
+            
+            logEntries.insertBefore(entry, logEntries.firstChild);
+        };
+
+        // Function to clear log
+        window.clearLog = function() {
+            document.getElementById('log-entries').innerHTML = '';
+        };
+
+        // Enhanced console logging
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            
+            // Also log debug info to page
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('===')) {
+                const logEntries = document.getElementById('log-entries');
+                const entry = document.createElement('div');
+                entry.className = 'log-entry debug';
+                entry.innerHTML = `<strong>Debug:</strong> ${args.join(' ')}`;
+                logEntries.insertBefore(entry, logEntries.firstChild);
+            }
+        };
+
+        import Alpine from './node_modules/alpinejs/dist/module.esm.js';
+        import LivewireDragAndDrop from './src/index.js';
+
+        try {
+            LivewireDragAndDrop(Alpine);
+            Alpine.start();
+            console.log('✅ Test environment initialized successfully');
+            
+            // Add initial log entry
+            const logEntries = document.getElementById('log-entries');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <strong>🚀 Test Environment Ready</strong><br>
+                Try dragging items or using keyboard navigation to test the index fix.
+            `;
+            logEntries.appendChild(entry);
+            
+        } catch (error) {
+            console.error('❌ Error initializing test:', error);
+            const logEntries = document.getElementById('log-entries');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry error';
+            entry.innerHTML = `<strong>❌ Initialization Error:</strong> ${error.message}`;
+            logEntries.appendChild(entry);
+        }
+    </script>
+</body>
+</html>

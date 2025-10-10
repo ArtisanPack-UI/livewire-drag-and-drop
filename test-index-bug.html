@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Index Bug - oldIndex and newIndex Same</title>
+    <style>
+        .drag-item {
+            padding: 15px;
+            margin: 8px 0;
+            background: #f0f0f0;
+            border: 2px solid #ccc;
+            cursor: grab;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .drag-item:active {
+            cursor: grabbing;
+        }
+        .is-dragging {
+            opacity: 0.5;
+            background: #e0e0e0;
+        }
+        .sr-only {
+            position: absolute;
+            left: -10000px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+        .log {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 4px solid #007acc;
+            background: white;
+        }
+        .error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .success {
+            border-left-color: #4caf50;
+            background: #e8f5e8;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Index Bug: oldIndex and newIndex Same Issue</h1>
+    
+    <p><strong>Instructions:</strong> Drag items to different positions. Check the log to see if oldIndex and newIndex are correctly different.</p>
+    
+    <div class="space-y-4" 
+         x-data="{
+             handleDrop: (event) => {
+                 console.log('Drag end event:', event);
+                 const { oldIndex, newIndex } = event.detail;
+                 
+                 // Log the results
+                 logResult(oldIndex, newIndex);
+                 
+                 console.log('oldIndex:', oldIndex, 'newIndex:', newIndex);
+                 
+                 if (oldIndex !== newIndex) {
+                     console.log('SUCCESS: Indices are different');
+                 } else {
+                     console.error('BUG: oldIndex and newIndex are the same!');
+                 }
+             }
+         }" 
+         x-drag-context 
+         @drag:end="handleDrop($event)" 
+         role="application" 
+         aria-label="Test drag and drop interface">
+        
+        <div class="drag-item" x-drag-item="{id: 1, title: 'Item 1'}">Item 1 - Original Position 0</div>
+        <div class="drag-item" x-drag-item="{id: 2, title: 'Item 2'}">Item 2 - Original Position 1</div>
+        <div class="drag-item" x-drag-item="{id: 3, title: 'Item 3'}">Item 3 - Original Position 2</div>
+        <div class="drag-item" x-drag-item="{id: 4, title: 'Item 4'}">Item 4 - Original Position 3</div>
+        <div class="drag-item" x-drag-item="{id: 5, title: 'Item 5'}">Item 5 - Original Position 4</div>
+    </div>
+
+    <div class="log">
+        <h3>Drag Results Log:</h3>
+        <div id="log-entries"></div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+        <h3>Expected Behavior:</h3>
+        <ul>
+            <li><strong>oldIndex:</strong> Should be the original position of the item before dragging</li>
+            <li><strong>newIndex:</strong> Should be the final position of the item after dragging</li>
+            <li><strong>Bug:</strong> Currently both values are the same (final position)</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        // Function to log drag results
+        window.logResult = function(oldIndex, newIndex) {
+            const logEntries = document.getElementById('log-entries');
+            const entry = document.createElement('div');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            if (oldIndex === newIndex) {
+                entry.className = 'log-entry error';
+                entry.innerHTML = `
+                    <strong>[${timestamp}] ❌ BUG DETECTED:</strong><br>
+                    oldIndex: ${oldIndex}, newIndex: ${newIndex} (both are the same!)
+                `;
+            } else {
+                entry.className = 'log-entry success';
+                entry.innerHTML = `
+                    <strong>[${timestamp}] ✅ SUCCESS:</strong><br>
+                    oldIndex: ${oldIndex}, newIndex: ${newIndex} (correctly different)
+                `;
+            }
+            
+            logEntries.insertBefore(entry, logEntries.firstChild);
+        };
+
+        import Alpine from './node_modules/alpinejs/dist/module.esm.js';
+        import LivewireDragAndDrop from './src/index.js';
+
+        try {
+            LivewireDragAndDrop(Alpine);
+            Alpine.start();
+            console.log('Test initialized successfully');
+            
+            // Add initial log entry
+            const logEntries = document.getElementById('log-entries');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = '<strong>Test initialized - Try dragging items to different positions</strong>';
+            logEntries.appendChild(entry);
+            
+        } catch (error) {
+            console.error('Error initializing test:', error);
+        }
+    </script>
+</body>
+</html>

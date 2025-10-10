@@ -65,6 +65,41 @@ function createAnnounceFunction() {
     };
 }
 
+// Global storage for drag context state that survives DOM re-rendering
+const dragContextState = new WeakMap();
+const dragContextHelpers = new WeakMap();
+
+/**
+ * Helper function to find the drag context element and its state.
+ * This works across DOM re-renders by checking WeakMap storage.
+ *
+ * @since 1.0.0
+ * @param {HTMLElement} element The element to start searching from.
+ * @return {Object|null} Object with dragContext element, state, and helpers, or null if not found.
+ */
+function findDragContext(element) {
+    let current = element;
+    
+    // Traverse up the DOM tree looking for a drag context
+    while (current && current !== document.body) {
+        if (current.hasAttribute && current.hasAttribute('x-drag-context')) {
+            const state = dragContextState.get(current);
+            const helpers = dragContextHelpers.get(current);
+            
+            if (state && helpers) {
+                return {
+                    element: current,
+                    state: state,
+                    helpers: helpers
+                };
+            }
+        }
+        current = current.parentElement;
+    }
+    
+    return null;
+}
+
 /**
  * Initializes the Alpine.js directives for accessible drag-and-drop functionality.
  *
@@ -139,10 +174,12 @@ export default function LivewireDragAndDrop( Alpine ) {
             dragState.draggedData = null;
         };
 
-        // Initialize context
-        el._dragContext = dragState;
-        el._announce = announce;
-        el._finalizeDrop = finalizeDrop;
+        // Store context state in WeakMap to survive DOM re-rendering
+        dragContextState.set(el, dragState);
+        dragContextHelpers.set(el, {
+            announce: announce,
+            finalizeDrop: finalizeDrop
+        });
 
         // Handle dragover events for the context
         const handleDragOver = ( e ) => {
@@ -198,13 +235,19 @@ export default function LivewireDragAndDrop( Alpine ) {
                 // Finalize the drop operation
                 finalizeDrop( dragState.draggedElement );
 
-                // Evaluate the expression with drag data
-                const evaluateExpression = evaluateLater( expression );
-                evaluateExpression( () => ( {
-                    draggedElement: dragState.draggedElement,
-                    draggedData: dragState.draggedData,
-                    dropTarget: e.target
-                } ) );
+                // Evaluate the expression with drag data (only if expression exists)
+                if ( expression && expression.trim() ) {
+                    try {
+                        const evaluateExpression = evaluateLater( expression );
+                        evaluateExpression( () => ( {
+                            draggedElement: dragState.draggedElement,
+                            draggedData: dragState.draggedData,
+                            dropTarget: e.target
+                        } ) );
+                    } catch ( error ) {
+                        console.warn( 'Error evaluating x-drag-context expression:', error );
+                    }
+                }
             }
         };
 
@@ -269,21 +312,38 @@ export default function LivewireDragAndDrop( Alpine ) {
                 document.body.appendChild(instructions);
             }
 
-            // Find parent drag context
-            const dragContext = el.closest('[x-drag-context]');
-            if (!dragContext || !dragContext._dragContext) {
+            // Find parent drag context using WeakMap storage
+            const dragContextInfo = findDragContext(el);
+            if (!dragContextInfo) {
                 console.warn('x-drag-item must be used within x-drag-context');
                 return;
             }
 
-            const contextState = dragContext._dragContext;
-            const announce = dragContext._announce;
+            const { element: dragContext, state: contextState, helpers } = dragContextInfo;
+            const { announce, finalizeDrop } = helpers;
 
             // Handle drag start
             const handleDragStart = (e) => {
                 contextState.isDragging = true;
                 contextState.draggedElement = el;
-                contextState.draggedData = evaluate(expression);
+                
+                // CRITICAL: Capture original index BEFORE any DOM manipulation
+                const allItems = Array.from(dragContext.querySelectorAll('[x-drag-item]'));
+                const originalIndex = allItems.indexOf(el);
+                
+                // Safely evaluate the expression with fallback
+                try {
+                    const dragData = expression && expression.trim() ? evaluate(expression) : {};
+                    contextState.draggedData = {
+                        ...dragData,
+                        originalIndex: originalIndex
+                    };
+                } catch (error) {
+                    console.warn('Error evaluating x-drag-item expression:', error);
+                    contextState.draggedData = {
+                        originalIndex: originalIndex
+                    };
+                }
 
                 el.setAttribute('aria-grabbed', 'true');
                 el.setAttribute('aria-pressed', 'true');
@@ -329,7 +389,16 @@ export default function LivewireDragAndDrop( Alpine ) {
                             // Store original index and data for keyboard navigation
                             const allItems = Array.from(dragContext.querySelectorAll('[x-drag-item]'));
                             const originalIndex = allItems.indexOf(el);
-                            const dragData = evaluate(expression);
+                            
+                            // Safely evaluate the expression with fallback
+                            let dragData = {};
+                            try {
+                                dragData = expression && expression.trim() ? evaluate(expression) : {};
+                            } catch (error) {
+                                console.warn('Error evaluating x-drag-item expression during keyboard navigation:', error);
+                                dragData = {};
+                            }
+                            
                             contextState.draggedData = {
                                 ...dragData,
                                 originalIndex: originalIndex
@@ -346,7 +415,7 @@ export default function LivewireDragAndDrop( Alpine ) {
                             isGrabbed = false;
 
                             // Finalize the drop operation using the shared helper function
-                            dragContext._finalizeDrop(contextState.draggedElement || el);
+                            finalizeDrop(contextState.draggedElement || el);
 
                             el.setAttribute('aria-grabbed', 'false');
                             el.setAttribute('aria-pressed', 'false');
