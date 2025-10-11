@@ -3,41 +3,45 @@
  *
  * This file contains the Alpine.js directives for accessible drag-and-drop
  * functionality within the ArtisanPack UI ecosystem. Provides complete
- * keyboard navigation, screen reader support, and Livewire integration.
+ * keyboard navigation, screen reader support, and deep Livewire integration
+ * using official JavaScript hooks.
  *
- * @package ArtisanPack UI
+ * @package    ArtisanPack UI
  * @subpackage Livewire Drag and Drop
- * @since 1.0.0
- * @version 1.0.0
- * @author ArtisanPack UI Team
- * @copyright 2025 ArtisanPack UI
- * @license MIT
+ * @since      1.1.0
+ * @version    1.1.0
+ * @author     ArtisanPack UI Team
+ * @copyright  2025 ArtisanPack UI
+ * @license    MIT
  */
 
-// Global aria-live region for announcements
+// --- Accessibility Helpers ---
+
 let globalAriaLiveRegion = null;
 
 /**
  * Creates and returns the global aria-live region for drag and drop announcements.
  *
- * This function ensures only one aria-live region exists per document to follow
- * accessibility best practices and avoid duplicate announcements.
- *
  * @since 1.0.0
  * @return {HTMLElement} The global aria-live region element.
  */
 function getGlobalAriaLiveRegion() {
-    if ( !globalAriaLiveRegion ) {
-        globalAriaLiveRegion = document.createElement( 'div' );
-        globalAriaLiveRegion.setAttribute( 'aria-live', 'polite' );
-        globalAriaLiveRegion.setAttribute( 'aria-atomic', 'true' );
+    if (!globalAriaLiveRegion || !globalAriaLiveRegion.isConnected) {
+        globalAriaLiveRegion = document.createElement('div');
+        globalAriaLiveRegion.setAttribute('aria-live', 'polite');
+        globalAriaLiveRegion.setAttribute('aria-atomic', 'true');
         globalAriaLiveRegion.className = 'sr-only';
+        // Position off-screen
         globalAriaLiveRegion.style.position = 'absolute';
-        globalAriaLiveRegion.style.left = '-10000px';
         globalAriaLiveRegion.style.width = '1px';
         globalAriaLiveRegion.style.height = '1px';
+        globalAriaLiveRegion.style.padding = '0';
+        globalAriaLiveRegion.style.margin = '-1px';
         globalAriaLiveRegion.style.overflow = 'hidden';
-        document.body.appendChild( globalAriaLiveRegion );
+        globalAriaLiveRegion.style.clip = 'rect(0, 0, 0, 0)';
+        globalAriaLiveRegion.style.whiteSpace = 'nowrap';
+        globalAriaLiveRegion.style.borderWidth = '0';
+        document.body.appendChild(globalAriaLiveRegion);
     }
     return globalAriaLiveRegion;
 }
@@ -50,83 +54,86 @@ function getGlobalAriaLiveRegion() {
  */
 function createAnnounceFunction() {
     const liveRegion = getGlobalAriaLiveRegion();
-
-    /**
-     * Announces a message to screen readers using the global aria-live region.
-     *
-     * @since 1.0.0
-     * @param {string} message The message to announce.
-     * @param {string} priority The priority level ('polite' or 'assertive').
-     * @return {void}
-     */
-    return function announce( message, priority = 'polite' ) {
-        liveRegion.setAttribute( 'aria-live', priority );
+    return function announce(message, priority = 'polite') {
+        liveRegion.setAttribute('aria-live', priority);
         liveRegion.textContent = message;
     };
 }
 
-// Global storage for drag context state that survives DOM re-rendering
-const dragContextState = new WeakMap();
-const dragContextHelpers = new WeakMap();
+
+// --- Livewire Integration & State Management ---
 
 /**
- * Helper function to find the drag context element and its state.
- * This works across DOM re-renders by checking WeakMap storage.
+ * @var {Array} Holds the wire:key of elements that were just reordered.
+ * This is used by the Livewire hook to prevent morphing.
+ */
+let recentlyMovedKeys = [];
+
+/**
+ * Helper function to find the drag context element.
+ * This works across DOM re-renders by checking for direct properties on the element.
  *
  * @since 1.0.0
  * @param {HTMLElement} element The element to start searching from.
- * @return {Object|null} Object with dragContext element, state, and helpers, or null if not found.
+ * @return {Object|null} Object with element, state, and helpers, or null.
  */
 function findDragContext(element) {
     let current = element;
-    
-    // Traverse up the DOM tree looking for a drag context
     while (current && current !== document.body) {
-        if (current.hasAttribute && current.hasAttribute('x-drag-context')) {
-            const state = dragContextState.get(current);
-            const helpers = dragContextHelpers.get(current);
-            
-            if (state && helpers) {
-                return {
-                    element: current,
-                    state: state,
-                    helpers: helpers
-                };
-            }
+        if (current._dragContextState && current._dragContextHelpers) {
+            return {
+                element: current,
+                state: current._dragContextState,
+                helpers: current._dragContextHelpers
+            };
         }
         current = current.parentElement;
     }
-    
     return null;
 }
 
 /**
- * Initializes the Alpine.js directives for accessible drag-and-drop functionality.
+ * Initializes the Alpine.js directives and sets up Livewire hooks.
  *
- * This is the main export function that registers the x-drag-context and x-drag-item
- * directives with Alpine.js. It provides complete accessibility support including
- * keyboard navigation, screen reader announcements, and proper ARIA attributes.
- *
- * @since 1.0.0
- * @param {Object} Alpine The global Alpine.js instance.
+ * @since 1.1.0
+ * @param {object} Alpine The global Alpine instance.
  * @return {void}
  */
-export default function LivewireDragAndDrop( Alpine ) {
+export default function LivewireDragAndDrop(Alpine) {
+
+    // --- Livewire Hooks ---
+    // This is the core of the new architecture.
+
     /**
-     * Creates a drag-and-drop context for a set of related items.
-     *
-     * This directive manages the state for a group of draggable items,
-     * handles drop events, and orchestrates communication with Livewire.
-     * It uses the global aria-live region for accessibility announcements.
-     *
-     * @since 1.0.0
-     * @param {HTMLElement} el The element this directive is attached to.
-     * @param {Object} directive The directive configuration object.
-     * @param {Object} Alpine The Alpine.js utilities object.
-     * @return {Function|void} Alpine.js cleanup function or void.
+     * Intercepts Livewire's DOM updates.
+     * If an element was part of the recent drag operation, this hook tells
+     * Livewire to NOT update it, preserving the DOM and Alpine state.
      */
-    Alpine.directive( 'drag-context', ( el, { expression }, { evaluate, evaluateLater } ) => {
-        // Initialize drag context state
+    Livewire.hook('element.updating', (fromEl, toEl, component) => {
+        if (fromEl.hasAttribute('x-drag-item') && fromEl.getAttribute('wire:key')) {
+            const wireKey = fromEl.getAttribute('wire:key');
+            if (recentlyMovedKeys.includes(wireKey)) {
+                // Returning false tells Livewire to skip this element entirely.
+                return false;
+            }
+        }
+    });
+
+    /**
+     * Clears the `recentlyMovedKeys` array after a Livewire update is complete.
+     * This ensures the "skip" logic only applies to the single update
+     * immediately following a drop.
+     */
+    Livewire.hook('message.processed', (message, component) => {
+        if (recentlyMovedKeys.length > 0) {
+            recentlyMovedKeys = [];
+        }
+    });
+
+
+    // --- Alpine Directives ---
+
+    Alpine.directive('drag-context', (el) => {
         let dragState = {
             isDragging: false,
             draggedElement: null,
@@ -134,380 +141,169 @@ export default function LivewireDragAndDrop( Alpine ) {
             draggedData: null
         };
 
-        // Set up accessibility attributes
-        el.setAttribute( 'role', 'application' );
-        el.setAttribute( 'aria-label', 'Drag and drop interface' );
+        // Attach state and helpers directly to the DOM element to survive morphs.
+        el._dragContextState = dragState;
+        el._dragContextHelpers = {
+            announce: createAnnounceFunction(),
+            finalizeDrop: (grabbedElement) => {
+                if (!grabbedElement) return;
 
-        // Use global aria-live region for announcements
-        const announce = createAnnounceFunction();
+                // Get all items in their NEW order from the DOM.
+                const allItems = Array.from(el.querySelectorAll('[x-drag-item]'));
 
-        // Helper function to finalize drop operations
-        const finalizeDrop = ( grabbedElement ) => {
-            if ( !grabbedElement ) return;
+                // Populate the array for the Livewire hook.
+                recentlyMovedKeys = allItems.map(item => item.getAttribute('wire:key'));
 
-            // Get all draggable items to calculate indices
-            const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
-            const sourceElement = grabbedElement;
+                // Dispatch event to trigger the Livewire action.
+                const dragEndEvent = new CustomEvent('drag:end', { bubbles: true });
+                el.dispatchEvent(dragEndEvent);
 
-            // Calculate old and new indices
-            const oldIndex = dragState.draggedData && dragState.draggedData.originalIndex !== undefined
-                ? dragState.draggedData.originalIndex
-                : allItems.indexOf( sourceElement );
-            const newIndex = allItems.indexOf( sourceElement );
-
-            // Dispatch custom drag:end event
-            const dragEndEvent = new CustomEvent( 'drag:end', {
-                detail: {
-                    oldIndex: oldIndex,
-                    newIndex: newIndex,
-                    group: el.getAttribute( 'x-drag-context' ) || 'default',
-                    target: sourceElement,
-                    item: sourceElement
-                },
-                bubbles: true
-            } );
-            el.dispatchEvent( dragEndEvent );
-
-            // Reset drag state
-            dragState.isDragging = false;
-            dragState.draggedElement = null;
-            dragState.draggedData = null;
+                // Reset state.
+                dragState.isDragging = false;
+                dragState.draggedElement = null;
+                dragState.draggedData = null;
+            }
         };
 
-        // Store context state in WeakMap to survive DOM re-rendering
-        dragContextState.set(el, dragState);
-        dragContextHelpers.set(el, {
-            announce: announce,
-            finalizeDrop: finalizeDrop
-        });
-
-        // Handle dragover events for the context
-        const handleDragOver = ( e ) => {
+        const handleDragOver = (e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         };
 
-        // Handle drop events
-        const handleDrop = ( e ) => {
+        const handleDrop = (e) => {
             e.preventDefault();
-
-            if ( dragState.draggedElement ) {
-                const targetElement = e.target.closest( '[x-drag-item]' ) || e.target;
-
-                // Handle mouse drop positioning - move element to drop position if needed
-                if ( targetElement && targetElement.hasAttribute( 'x-drag-item' ) && targetElement !== dragState.draggedElement ) {
-                    // Move the dragged element to the target position
-                    const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
-                    const targetIndex = allItems.indexOf( targetElement );
-                    const draggedIndex = allItems.indexOf( dragState.draggedElement );
-
-                    if ( draggedIndex < targetIndex ) {
-                        targetElement.parentNode.insertBefore( dragState.draggedElement, targetElement.nextSibling );
+            if (dragState.draggedElement) {
+                const targetElement = e.target.closest('[x-drag-item]');
+                if (targetElement && targetElement !== dragState.draggedElement) {
+                    // Logic to place the item relative to the drop target.
+                    const rect = targetElement.getBoundingClientRect();
+                    const isAfter = (e.clientY - rect.top) > (rect.height / 2);
+                    if (isAfter) {
+                        targetElement.parentNode.insertBefore(dragState.draggedElement, targetElement.nextSibling);
                     } else {
-                        targetElement.parentNode.insertBefore( dragState.draggedElement, targetElement );
-                    }
-                } else if ( !targetElement || !targetElement.hasAttribute( 'x-drag-item' ) ) {
-                    // If dropped on container, find position based on mouse coordinates
-                    const allItems = Array.from( el.querySelectorAll( '[x-drag-item]' ) );
-                    const rect = el.getBoundingClientRect();
-                    const dropY = e.clientY - rect.top;
-
-                    // Find the item that should come after the dropped position
-                    let insertBeforeElement = null;
-                    for ( let i = 0; i < allItems.length; i++ ) {
-                        if ( allItems[i] === dragState.draggedElement ) continue;
-                        const itemRect = allItems[i].getBoundingClientRect();
-                        const itemY = itemRect.top - rect.top;
-                        if ( dropY < itemY + itemRect.height / 2 ) {
-                            insertBeforeElement = allItems[i];
-                            break;
-                        }
-                    }
-
-                    if ( insertBeforeElement ) {
-                        insertBeforeElement.parentNode.insertBefore( dragState.draggedElement, insertBeforeElement );
-                    } else {
-                        // Insert at end
-                        el.appendChild( dragState.draggedElement );
+                        targetElement.parentNode.insertBefore(dragState.draggedElement, targetElement);
                     }
                 }
-
-                // Finalize the drop operation
-                finalizeDrop( dragState.draggedElement );
-
-                // Evaluate the expression with drag data (only if expression exists)
-                if ( expression && expression.trim() ) {
-                    try {
-                        const evaluateExpression = evaluateLater( expression );
-                        evaluateExpression( () => ( {
-                            draggedElement: dragState.draggedElement,
-                            draggedData: dragState.draggedData,
-                            dropTarget: e.target
-                        } ) );
-                    } catch ( error ) {
-                        console.warn( 'Error evaluating x-drag-context expression:', error );
-                    }
-                }
+                // Finalize the drop and trigger the Livewire update.
+                el._dragContextHelpers.finalizeDrop(dragState.draggedElement);
             }
         };
 
-        // Keyboard navigation support
-        const handleKeyDown = ( e ) => {
-            if ( e.key === 'Escape' && dragState.isDragging ) {
-                // Cancel drag operation
-                dragState.isDragging = false;
-                dragState.draggedElement = null;
-                dragState.draggedData = null;
-
-                // Announce cancellation to screen readers
-                announce( 'Drag operation cancelled' );
-            }
-        };
-
-        // Add event listeners
-        el.addEventListener( 'dragover', handleDragOver );
-        el.addEventListener( 'drop', handleDrop );
-        el.addEventListener( 'keydown', handleKeyDown );
-
-        // Return cleanup function for Alpine.js
-        return () => {
-            el.removeEventListener( 'dragover', handleDragOver );
-            el.removeEventListener( 'drop', handleDrop );
-            el.removeEventListener( 'keydown', handleKeyDown );
-        };
+        el.addEventListener('dragover', handleDragOver);
+        el.addEventListener('drop', handleDrop);
     });
 
-    /**
-     * Designates an element as a draggable item within a drag context.
-     *
-     * This directive adds the necessary attributes for dragging, keyboard
-     * interaction, and accessibility to an individual item. It integrates
-     * with the parent drag context for state management and announcements.
-     *
-     * @since 1.0.0
-     * @param {HTMLElement} el The element this directive is attached to.
-     * @param {Object} directive The directive configuration object.
-     * @param {Object} Alpine The Alpine.js utilities object.
-     * @return {Function|void} Alpine.js cleanup function or void.
-     */
-    Alpine.directive( 'drag-item', ( el, { expression }, { evaluate, evaluateLater } ) => {
-        Alpine.nextTick( () => {
-            // Make element draggable
+    Alpine.directive('drag-item', (el, { expression }, { evaluate, cleanup }) => {
+        Alpine.nextTick(() => {
             el.draggable = true;
             el.tabIndex = 0;
-
-            // Set up accessibility attributes
             el.setAttribute('role', 'button');
             el.setAttribute('aria-grabbed', 'false');
-            el.setAttribute('aria-describedby', 'drag-instructions');
 
-            // Add drag instructions for screen readers (create once)
-            if (!document.getElementById('drag-instructions')) {
-                const instructions = document.createElement('div');
-                instructions.id = 'drag-instructions';
-                instructions.className = 'sr-only';
-                instructions.textContent = 'Press space or enter to grab, arrow keys to move, space or enter to drop, escape to cancel';
-                instructions.style.position = 'absolute';
-                instructions.style.left = '-10000px';
-                document.body.appendChild(instructions);
-            }
-
-            // Find parent drag context using WeakMap storage
-            const dragContextInfo = findDragContext(el);
-            if (!dragContextInfo) {
-                console.warn('x-drag-item must be used within x-drag-context');
-                return;
-            }
-
-            const { element: dragContext, state: contextState, helpers } = dragContextInfo;
-            const { announce, finalizeDrop } = helpers;
-
-            // Handle drag start
             const handleDragStart = (e) => {
+                const contextInfo = findDragContext(el);
+                if (!contextInfo) {
+                    e.preventDefault();
+                    return;
+                }
+                const { state: contextState, helpers } = contextInfo;
+
                 contextState.isDragging = true;
                 contextState.draggedElement = el;
-                
-                // CRITICAL: Capture original index BEFORE any DOM manipulation
-                const allItems = Array.from(dragContext.querySelectorAll('[x-drag-item]'));
-                const originalIndex = allItems.indexOf(el);
-                
-                // Safely evaluate the expression with fallback
-                try {
-                    const dragData = expression && expression.trim() ? evaluate(expression) : {};
-                    contextState.draggedData = {
-                        ...dragData,
-                        originalIndex: originalIndex
-                    };
-                } catch (error) {
-                    console.warn('Error evaluating x-drag-item expression:', error);
-                    contextState.draggedData = {
-                        originalIndex: originalIndex
-                    };
-                }
+                contextState.draggedData = expression ? evaluate(expression) : {};
 
-                el.setAttribute('aria-grabbed', 'true');
-                el.setAttribute('aria-pressed', 'true');
-                el.classList.add('is-grabbing', 'is-dragging');
-
-                // Set drag data
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', JSON.stringify(contextState.draggedData));
 
-                // Announce drag start to screen readers
-                announce('Item grabbed for dragging', 'assertive');
+                el.setAttribute('aria-grabbed', 'true');
+                helpers.announce('Item grabbed.', 'assertive');
             };
 
-            // Handle drag end
             const handleDragEnd = (e) => {
+                const contextInfo = findDragContext(el);
+                if (!contextInfo) return;
+                const { state: contextState, helpers } = contextInfo;
+
                 el.setAttribute('aria-grabbed', 'false');
-                el.setAttribute('aria-pressed', 'false');
-                el.classList.remove('is-grabbing', 'is-dragging');
-
-                // Reset context state
-                contextState.isDragging = false;
-                contextState.draggedElement = null;
-                contextState.draggedData = null;
-
-                // Announce drag end to screen readers
-                announce('Item released');
+                if (contextState) {
+                    contextState.isDragging = false;
+                    contextState.draggedElement = null;
+                    contextState.draggedData = null;
+                }
+                helpers.announce('Item released.');
             };
-
-            // Keyboard support
-            let isGrabbed = false;
 
             const handleKeyDown = (e) => {
-                switch (e.key) {
-                    case ' ':
-                    case 'Enter':
+                const contextInfo = findDragContext(el);
+                if (!contextInfo) return;
+                const { element: contextEl, state: contextState, helpers } = contextInfo;
+                let isGrabbed = contextState.isDragging && contextState.draggedElement === el;
+
+                const keyActions = {
+                    ' ': () => {
                         e.preventDefault();
                         if (!isGrabbed) {
-                            // Grab the item
-                            isGrabbed = true;
                             contextState.isDragging = true;
                             contextState.draggedElement = el;
-
-                            // Store original index and data for keyboard navigation
-                            const allItems = Array.from(dragContext.querySelectorAll('[x-drag-item]'));
-                            const originalIndex = allItems.indexOf(el);
-                            
-                            // Safely evaluate the expression with fallback
-                            let dragData = {};
-                            try {
-                                dragData = expression && expression.trim() ? evaluate(expression) : {};
-                            } catch (error) {
-                                console.warn('Error evaluating x-drag-item expression during keyboard navigation:', error);
-                                dragData = {};
-                            }
-                            
-                            contextState.draggedData = {
-                                ...dragData,
-                                originalIndex: originalIndex
-                            };
-
+                            contextState.draggedData = expression ? evaluate(expression) : {};
                             el.setAttribute('aria-grabbed', 'true');
-                            el.setAttribute('aria-pressed', 'true');
-                            el.classList.add('is-grabbing', 'is-dragging');
-
-                            // Announce grab
-                            announce('Item grabbed. Use arrow keys to move, space to drop, escape to cancel.', 'assertive');
+                            helpers.announce('Grabbed. Use arrow keys to move.', 'assertive');
                         } else {
-                            // Drop the item
-                            isGrabbed = false;
-
-                            // Finalize the drop operation using the shared helper function
-                            finalizeDrop(contextState.draggedElement || el);
-
                             el.setAttribute('aria-grabbed', 'false');
-                            el.setAttribute('aria-pressed', 'false');
-                            el.classList.remove('is-grabbing', 'is-dragging');
-
-                            // Trigger drop event
-                            const dropEvent = new Event('drop', {bubbles: true});
-                            el.dispatchEvent(dropEvent);
+                            helpers.finalizeDrop(el);
+                            helpers.announce('Dropped.');
                         }
-                        break;
-
-                    case 'Escape':
+                    },
+                    'Enter': () => keyActions[' '](), // Enter does the same as Space
+                    'Escape': () => {
                         if (isGrabbed) {
-                            e.preventDefault();
-                            isGrabbed = false;
                             el.setAttribute('aria-grabbed', 'false');
-                            el.setAttribute('aria-pressed', 'false');
-                            el.classList.remove('is-grabbing', 'is-dragging');
-
-                            // Reset state
                             contextState.isDragging = false;
                             contextState.draggedElement = null;
                             contextState.draggedData = null;
-
-                            // Announce cancellation
-                            announce('Drag cancelled');
+                            // Note: You might want to add logic to return the element to its original spot here.
+                            helpers.announce('Drag cancelled.');
                         }
-                        break;
+                    },
+                    'ArrowUp': () => move(e, 'previous'),
+                    'ArrowLeft': () => move(e, 'previous'),
+                    'ArrowDown': () => move(e, 'next'),
+                    'ArrowRight': () => move(e, 'next'),
+                };
 
-                    case 'ArrowUp':
-                    case 'ArrowDown':
-                    case 'ArrowLeft':
-                    case 'ArrowRight':
-                        if (isGrabbed) {
-                            e.preventDefault();
-                            // Find next/previous draggable item based on arrow direction
-                            const draggableItems = Array.from(dragContext.querySelectorAll('[x-drag-item]'));
-                            const currentIndex = draggableItems.indexOf(el);
-                            let targetIndex;
+                function move(event, direction) {
+                    if (!isGrabbed) return;
+                    event.preventDefault();
+                    const allItems = Array.from(contextEl.querySelectorAll('[x-drag-item]'));
+                    const currentIndex = allItems.indexOf(el);
+                    const targetIndex = direction === 'next'
+                        ? (currentIndex + 1) % allItems.length
+                        : (currentIndex - 1 + allItems.length) % allItems.length;
 
-                            if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-                                targetIndex = currentIndex > 0 ? currentIndex - 1 : draggableItems.length - 1;
-                            } else {
-                                targetIndex = currentIndex < draggableItems.length - 1 ? currentIndex + 1 : 0;
-                            }
+                    const targetEl = allItems[targetIndex];
+                    if (direction === 'next') {
+                        targetEl.parentNode.insertBefore(el, targetEl.nextSibling);
+                    } else {
+                        targetEl.parentNode.insertBefore(el, targetEl);
+                    }
+                    el.focus();
+                    helpers.announce(`Moved to position ${targetIndex + 1}.`);
+                }
 
-                            const targetElement = draggableItems[targetIndex];
-                            if (targetElement && targetElement !== el) {
-                                // Actually move the element in the DOM
-                                if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-                                    // Moving up/left - insert before target element
-                                    targetElement.parentNode.insertBefore(el, targetElement);
-                                } else {
-                                    // Moving down/right - insert after target element
-                                    targetElement.parentNode.insertBefore(el, targetElement.nextSibling);
-                                }
-
-                                // Keep focus on the moved element
-                                el.focus();
-
-                                // Announce movement
-                                announce(`Moved to position ${targetIndex + 1} of ${draggableItems.length}`);
-                            }
-                        }
-                        break;
+                if (keyActions[e.key]) {
+                    keyActions[e.key]();
                 }
             };
 
-            // Handle focus events for better UX
-            const handleFocus = () => {
-                el.classList.add('is-focused');
-            };
-
-            const handleBlur = () => {
-                el.classList.remove('is-focused');
-            };
-
-            // Add event listeners
             el.addEventListener('dragstart', handleDragStart);
             el.addEventListener('dragend', handleDragEnd);
             el.addEventListener('keydown', handleKeyDown);
-            el.addEventListener('focus', handleFocus);
-            el.addEventListener('blur', handleBlur);
 
-            // Return cleanup function for Alpine.js
-            return () => {
+            cleanup(() => {
                 el.removeEventListener('dragstart', handleDragStart);
                 el.removeEventListener('dragend', handleDragEnd);
                 el.removeEventListener('keydown', handleKeyDown);
-                el.removeEventListener('focus', handleFocus);
-                el.removeEventListener('blur', handleBlur);
-            };
-        } );
-    } );
+            });
+        });
+    });
 }

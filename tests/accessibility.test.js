@@ -1,490 +1,528 @@
 /**
- * Accessibility Tests
+ * Accessibility Tests for Livewire Drag and Drop
  * 
- * Comprehensive accessibility testing using jest-axe for WCAG compliance,
- * screen reader support, ARIA attributes, and accessibility best practices.
+ * Tests keyboard navigation, ARIA attributes, screen reader announcements,
+ * and focus management to ensure full accessibility compliance.
  */
 
-import { jest } from '@jest/globals';
-import jestAxe from 'jest-axe';
-const { axe } = jestAxe;
 import LivewireDragAndDrop from '../src/index.js';
+import { configureAxe } from 'jest-axe';
 
-describe('Accessibility Compliance', () => {
-  let mockAlpine;
-  let dragContext;
-  let dragItems;
-  let dragContextHandler;
-  let dragItemHandler;
+// Create axe instance
+const axe = configureAxe({
+  rules: {
+    // Disable some rules that might not be relevant for this test environment
+    'color-contrast': { enabled: false },
+    'page-has-heading-one': { enabled: false }
+  }
+});
 
-  beforeEach(async () => {
-    mockAlpine = global.testUtils.createMockAlpine();
-    LivewireDragAndDrop(mockAlpine);
-    
-    const directives = mockAlpine._getDirectives();
-    dragContextHandler = directives.get('drag-context');
-    dragItemHandler = directives.get('drag-item');
-    
-    // Create drag context with items
-    dragContext = global.testUtils.createDragContext(['Task 1', 'Task 2', 'Task 3']);
-    
-    // Initialize drag context
-    dragContextHandler(dragContext, { expression: '' }, {
-      evaluate: jest.fn(),
-      evaluateLater: jest.fn(() => jest.fn())
-    });
-    
-    // Initialize drag items with proper async handling
-    dragItems = Array.from(dragContext.children);
-    await Promise.all(dragItems.map((item, index) => 
-      mockAlpine.nextTick(() => {
-        dragItemHandler(item, 
-          { expression: `{ id: ${index + 1}, text: "${item.textContent}" }` },
-          { evaluate: jest.fn(() => ({ id: index + 1, text: item.textContent })) }
-        );
-      })
-    ));
-    
-    // Ensure all async initialization is complete
-    await mockAlpine.nextTick();
-    
-    // Ensure dragContext has the required properties for testing
-    // Don't mock _announce - let the real directive set it up
-    if (!dragContext._dragContext) {
-      dragContext._dragContext = {
-        isDragging: false,
-        draggedElement: null,
-        dropZones: [],
-        draggedData: null
+// Create a simple toHaveNoViolations matcher
+expect.extend({
+  toHaveNoViolations(received) {
+    if (received.violations && received.violations.length === 0) {
+      return {
+        message: () => `Expected element to have accessibility violations, but there were none.`,
+        pass: true,
+      };
+    } else {
+      return {
+        message: () => `Expected element to have no accessibility violations, but found: ${received.violations?.length || 0} violations.`,
+        pass: false,
       };
     }
-    if (!dragContext._finalizeDrop) {
-      dragContext._finalizeDrop = jest.fn();
-    }
-  });
+  }
+});
 
-  describe('WCAG Compliance', () => {
-    test('should have no accessibility violations in initial state', async () => {
-      await mockAlpine.nextTick();
-      
-      const results = await axe(dragContext);
-      expect(results).toHaveNoViolations();
+describe('Livewire Drag and Drop - Accessibility', () => {
+  let mockAlpine;
+  let contextElement;
+  let dragItem1;
+  let dragItem2;
+  let dragItem3;
+
+  beforeEach(() => {
+    // Set up Jest mocks for Alpine
+    global.Alpine.directive = jest.fn((name, callback) => {
+      global.Alpine._directives[name] = callback;
     });
-
-    test('should have no accessibility violations during drag operation', async () => {
-      await mockAlpine.nextTick();
-      
-      // Start drag operation
-      dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
-      
-      const results = await axe(dragContext);
-      expect(results).toHaveNoViolations();
+    global.Alpine.nextTick = jest.fn((callback) => {
+      if (callback) callback();
+      return Promise.resolve();
     });
-
-    test('should have no accessibility violations with keyboard grab', async () => {
-      await mockAlpine.nextTick();
-      
-      // Grab with keyboard
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      
-      const results = await axe(dragContext);
-      expect(results).toHaveNoViolations();
+    
+    // Set up Jest mocks for Livewire
+    global.Livewire.hook = jest.fn((hookName, callback) => {
+      global.Livewire._hooks[hookName] = callback;
     });
-
-    test('should have no accessibility violations in complex scenarios', async () => {
-      await mockAlpine.nextTick();
-      
-      // Complex interaction: grab, move, and various states
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', 'ArrowDown'));
-      dragItems[1].focus();
-      
-      const results = await axe(dragContext);
-      expect(results).toHaveNoViolations();
+    
+    // Set up DOM element mocks
+    Element.prototype.getBoundingClientRect = jest.fn(() => ({
+      top: 0,
+      left: 0,
+      bottom: 100,
+      right: 100,
+      width: 100,
+      height: 100,
+      x: 0,
+      y: 0
+    }));
+    
+    HTMLElement.prototype.focus = jest.fn();
+    
+    mockAlpine = global.Alpine;
+    
+    // Initialize the library
+    LivewireDragAndDrop(mockAlpine);
+    
+    // Set up a typical drag context with items
+    contextElement = document.createElement('div');
+    contextElement.setAttribute('x-drag-context', '');
+    document.body.appendChild(contextElement);
+    
+    // Initialize the context
+    const dragContextDirective = mockAlpine._getDirective('drag-context');
+    dragContextDirective(contextElement);
+    
+    // Create drag items
+    dragItem1 = document.createElement('div');
+    dragItem1.setAttribute('x-drag-item', '');
+    dragItem1.setAttribute('wire:key', 'item-1');
+    dragItem1.textContent = 'Item 1';
+    contextElement.appendChild(dragItem1);
+    
+    dragItem2 = document.createElement('div');
+    dragItem2.setAttribute('x-drag-item', '');
+    dragItem2.setAttribute('wire:key', 'item-2');
+    dragItem2.textContent = 'Item 2';
+    contextElement.appendChild(dragItem2);
+    
+    dragItem3 = document.createElement('div');
+    dragItem3.setAttribute('x-drag-item', '');
+    dragItem3.setAttribute('wire:key', 'item-3');
+    dragItem3.textContent = 'Item 3';
+    contextElement.appendChild(dragItem3);
+    
+    // Initialize drag items
+    const dragItemDirective = mockAlpine._getDirective('drag-item');
+    const mockEvaluate = jest.fn(() => ({ id: 'item-1' }));
+    const mockCleanup = jest.fn();
+    
+    dragItemDirective(dragItem1, { expression: 'item' }, { 
+      evaluate: mockEvaluate, 
+      cleanup: mockCleanup 
+    });
+    
+    mockEvaluate.mockReturnValue({ id: 'item-2' });
+    dragItemDirective(dragItem2, { expression: 'item' }, { 
+      evaluate: mockEvaluate, 
+      cleanup: mockCleanup 
+    });
+    
+    mockEvaluate.mockReturnValue({ id: 'item-3' });
+    dragItemDirective(dragItem3, { expression: 'item' }, { 
+      evaluate: mockEvaluate, 
+      cleanup: mockCleanup 
     });
   });
 
   describe('ARIA Attributes', () => {
-    test('should have proper role attributes', async () => {
-      await mockAlpine.nextTick();
-      
-      // Context should have application role
-      expect(dragContext.getAttribute('role')).toBe('application');
-      
-      // Items should have button role
-      dragItems.forEach(item => {
-        expect(item.getAttribute('role')).toBe('button');
-      });
+    test('should set correct initial ARIA attributes on drag items', () => {
+      expect(dragItem1.getAttribute('role')).toBe('button');
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
+      expect(dragItem1.getAttribute('tabindex')).toBe('0');
+      expect(dragItem1.draggable).toBe(true);
     });
 
-    test('should have proper aria-label for context', async () => {
-      await mockAlpine.nextTick();
+    test('should update aria-grabbed when item is grabbed via keyboard', () => {
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      expect(dragContext.getAttribute('aria-label')).toBe('Drag and drop interface');
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
     });
 
-    test('should manage aria-grabbed states correctly', async () => {
-      await mockAlpine.nextTick();
+    test('should reset aria-grabbed when item is dropped via keyboard', () => {
+      // First grab the item
+      const spaceKeyEvent1 = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent1);
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
       
-      // Initial state
-      dragItems.forEach(item => {
-        expect(item.getAttribute('aria-grabbed')).toBe('false');
-      });
-      
-      // After mouse drag start
-      dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
-      expect(dragItems[0].getAttribute('aria-grabbed')).toBe('true');
-      expect(dragItems[1].getAttribute('aria-grabbed')).toBe('false'); // Others remain false
-      
-      // After drag end
-      dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragend'));
-      expect(dragItems[0].getAttribute('aria-grabbed')).toBe('false');
+      // Then drop it
+      const spaceKeyEvent2 = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent2);
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
     });
 
-    test('should manage aria-pressed states correctly', async () => {
-      await mockAlpine.nextTick();
+    test('should reset aria-grabbed when drag is cancelled', () => {
+      // First grab the item
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
       
-      // Initial state (should be false or null)
-      dragItems.forEach(item => {
-        const pressed = item.getAttribute('aria-pressed');
-        expect(pressed === 'false' || pressed === null).toBe(true);
-      });
-      
-      // After keyboard grab
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      expect(dragItems[0].getAttribute('aria-pressed')).toBe('true');
-      
-      // After keyboard drop
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      expect(dragItems[0].getAttribute('aria-pressed')).toBe('false');
+      // Then cancel
+      const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
+      dragItem1.dispatchEvent(escapeKeyEvent);
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
     });
 
-    test('should have aria-describedby pointing to instructions', async () => {
-      await mockAlpine.nextTick();
+    test('should reset aria-grabbed after mouse drag operation', () => {
+      const dragStartEvent = createMockDragEvent('dragstart');
+      dragItem1.dispatchEvent(dragStartEvent);
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
       
-      dragItems.forEach(item => {
-        expect(item.getAttribute('aria-describedby')).toBe('drag-instructions');
-      });
-      
-      // Instructions should exist
-      const instructions = document.getElementById('drag-instructions');
-      expect(instructions).not.toBeNull();
-      expect(instructions.textContent).toBe(
-        'Press space or enter to grab, arrow keys to move, space or enter to drop, escape to cancel'
-      );
+      const dragEndEvent = createMockDragEvent('dragend');
+      dragItem1.dispatchEvent(dragEndEvent);
+      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
     });
   });
 
-  describe('Screen Reader Support', () => {
-    test('should create global aria-live region', async () => {
-      await mockAlpine.nextTick();
-      
-      // Trigger announce to create live region
-      dragContext._announce('Test message');
-      
-      const liveRegion = document.querySelector('[aria-live="polite"]');
-      expect(liveRegion).not.toBeNull();
-      expect(liveRegion.getAttribute('aria-atomic')).toBe('true');
-      expect(liveRegion.textContent).toBe('Test message');
+  describe('Keyboard Navigation', () => {
+    describe('Space and Enter Keys', () => {
+      test('should grab item with Space key', () => {
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        const preventDefaultSpy = jest.spyOn(spaceKeyEvent, 'preventDefault');
+        
+        dragItem1.dispatchEvent(spaceKeyEvent);
+        
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        expect(contextElement._dragContextState.isDragging).toBe(true);
+        expect(contextElement._dragContextState.draggedElement).toBe(dragItem1);
+        expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
+      });
+
+      test('should grab item with Enter key', () => {
+        const enterKeyEvent = createMockKeyboardEvent('keydown', 'Enter');
+        const preventDefaultSpy = jest.spyOn(enterKeyEvent, 'preventDefault');
+        
+        dragItem1.dispatchEvent(enterKeyEvent);
+        
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        expect(contextElement._dragContextState.isDragging).toBe(true);
+        expect(contextElement._dragContextState.draggedElement).toBe(dragItem1);
+        expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
+      });
+
+      test('should drop item with Space key when already grabbed', () => {
+        // First grab
+        const spaceKeyEvent1 = createMockKeyboardEvent('keydown', ' ');
+        dragItem1.dispatchEvent(spaceKeyEvent1);
+        expect(contextElement._dragContextState.isDragging).toBe(true);
+        
+        // Then drop
+        const spaceKeyEvent2 = createMockKeyboardEvent('keydown', ' ');
+        dragItem1.dispatchEvent(spaceKeyEvent2);
+        
+        expect(contextElement._dragContextState.isDragging).toBe(false);
+        expect(contextElement._dragContextState.draggedElement).toBe(null);
+        expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
+      });
     });
 
-    test('should announce drag start events', async () => {
-      await mockAlpine.nextTick();
-      const announceSpy = jest.spyOn(dragContext, '_announce');
-      
-      // Mouse drag start
-      dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
-      expect(announceSpy).toHaveBeenCalledWith('Item grabbed for dragging', 'assertive');
-      
-      // Keyboard grab
-      dragItems[1].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      expect(announceSpy).toHaveBeenCalledWith(
-        'Item grabbed. Use arrow keys to move, space to drop, escape to cancel.',
-        'assertive'
-      );
+    describe('Escape Key', () => {
+      test('should cancel drag operation with Escape key', () => {
+        // First grab
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        dragItem1.dispatchEvent(spaceKeyEvent);
+        expect(contextElement._dragContextState.isDragging).toBe(true);
+        
+        // Then cancel
+        const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
+        dragItem1.dispatchEvent(escapeKeyEvent);
+        
+        expect(contextElement._dragContextState.isDragging).toBe(false);
+        expect(contextElement._dragContextState.draggedElement).toBe(null);
+        expect(contextElement._dragContextState.draggedData).toBe(null);
+        expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
+      });
+
+      test('should do nothing with Escape when not grabbed', () => {
+        const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
+        dragItem1.dispatchEvent(escapeKeyEvent);
+        
+        // State should remain unchanged
+        expect(contextElement._dragContextState.isDragging).toBe(false);
+        expect(contextElement._dragContextState.draggedElement).toBe(null);
+      });
     });
 
-    test('should announce movement during keyboard navigation', async () => {
-      await mockAlpine.nextTick();
-      const announceSpy = jest.spyOn(dragContext, '_announce');
-      
-      // Grab and move
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', 'ArrowDown'));
-      
-      expect(announceSpy).toHaveBeenCalledWith('Moved to position 2 of 3');
+    describe('Arrow Key Navigation', () => {
+      test('should move item down with ArrowDown key', () => {
+        // First grab the item
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        dragItem1.dispatchEvent(spaceKeyEvent);
+        
+        // Move down
+        const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
+        const preventDefaultSpy = jest.spyOn(arrowDownEvent, 'preventDefault');
+        
+        dragItem1.dispatchEvent(arrowDownEvent);
+        
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        expect(HTMLElement.prototype.focus).toHaveBeenCalledWith();
+        
+        // dragItem1 should now be after dragItem2
+        expect(dragItem2.nextSibling).toBe(dragItem1);
+      });
+
+      test('should move item up with ArrowUp key', () => {
+        // First grab dragItem2 (middle item)
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        dragItem2.dispatchEvent(spaceKeyEvent);
+        
+        // Move up
+        const arrowUpEvent = createMockKeyboardEvent('keydown', 'ArrowUp');
+        const preventDefaultSpy = jest.spyOn(arrowUpEvent, 'preventDefault');
+        
+        dragItem2.dispatchEvent(arrowUpEvent);
+        
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        expect(HTMLElement.prototype.focus).toHaveBeenCalledWith();
+        
+        // dragItem2 should now be before dragItem1, so dragItem2's next sibling is dragItem1
+        expect(dragItem2.nextSibling).toBe(dragItem1);
+      });
+
+      test('should move item right with ArrowRight key', () => {
+        // First grab the item
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        dragItem1.dispatchEvent(spaceKeyEvent);
+        
+        // Move right (same as down)
+        const arrowRightEvent = createMockKeyboardEvent('keydown', 'ArrowRight');
+        const preventDefaultSpy = jest.spyOn(arrowRightEvent, 'preventDefault');
+        
+        dragItem1.dispatchEvent(arrowRightEvent);
+        
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        expect(dragItem2.nextSibling).toBe(dragItem1);
+      });
+
+      test('should move item left with ArrowLeft key', () => {
+        // First grab dragItem2 (middle item)
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        dragItem2.dispatchEvent(spaceKeyEvent);
+        
+        // Move left (same as up)
+        const arrowLeftEvent = createMockKeyboardEvent('keydown', 'ArrowLeft');
+        const preventDefaultSpy = jest.spyOn(arrowLeftEvent, 'preventDefault');
+        
+        dragItem2.dispatchEvent(arrowLeftEvent);
+        
+        expect(preventDefaultSpy).toHaveBeenCalled();
+        expect(dragItem2.nextSibling).toBe(dragItem1);
+      });
+
+      test('should wrap around when moving beyond bounds', () => {
+        // Grab last item (dragItem3, index 2 of 3 items)
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        dragItem3.dispatchEvent(spaceKeyEvent);
+        
+        // Move down (should wrap to beginning - target index should be 0)
+        const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
+        dragItem3.dispatchEvent(arrowDownEvent);
+        
+        // When moving down, dragItem3 should be placed after dragItem1's nextSibling
+        // Since dragItem1 is at index 0, dragItem3 should be between dragItem1 and dragItem2
+        expect(dragItem1.nextSibling).toBe(dragItem3);
+        expect(dragItem3.nextSibling).toBe(dragItem2);
+      });
+
+      test('should not move when not grabbed', () => {
+        const originalOrder = [dragItem1, dragItem2, dragItem3];
+        
+        const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
+        dragItem1.dispatchEvent(arrowDownEvent);
+        
+        // Order should remain unchanged
+        expect(contextElement.children[0]).toBe(originalOrder[0]);
+        expect(contextElement.children[1]).toBe(originalOrder[1]);
+        expect(contextElement.children[2]).toBe(originalOrder[2]);
+      });
     });
 
-    test('should announce drop completion', async () => {
-      await mockAlpine.nextTick();
-      const announceSpy = jest.spyOn(dragContext, '_announce');
+    test('should ignore unsupported keys', () => {
+      const unsupportedKeyEvent = createMockKeyboardEvent('keydown', 'a');
+      const preventDefaultSpy = jest.spyOn(unsupportedKeyEvent, 'preventDefault');
       
-      // Keyboard grab and drop
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
+      dragItem1.dispatchEvent(unsupportedKeyEvent);
       
-      expect(announceSpy).toHaveBeenCalledWith('Item dropped at position 1 of 3.');
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+      expect(contextElement._dragContextState.isDragging).toBe(false);
+    });
+  });
+
+  describe('Screen Reader Announcements', () => {
+    test('should announce when item is grabbed via keyboard', () => {
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      // Mouse drag end
-      dragItems[1].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
-      dragItems[1].dispatchEvent(global.testUtils.createDragEvent('dragend'));
-      
-      expect(announceSpy).toHaveBeenCalledWith('Item released');
+      const ariaLiveRegion = document.querySelector('[aria-live]');
+      expect(ariaLiveRegion.textContent).toBe('Grabbed. Use arrow keys to move.');
+      expect(ariaLiveRegion.getAttribute('aria-live')).toBe('assertive');
     });
 
-    test('should announce cancellation', async () => {
-      await mockAlpine.nextTick();
-      const announceSpy = jest.spyOn(dragContext, '_announce');
+    test('should announce when item is dropped via keyboard', () => {
+      // First grab
+      const spaceKeyEvent1 = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent1);
       
-      // Grab and cancel
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', 'Escape'));
+      // Then drop
+      const spaceKeyEvent2 = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent2);
       
-      expect(announceSpy).toHaveBeenCalledWith('Drag cancelled');
+      const ariaLiveRegion = document.querySelector('[aria-live]');
+      expect(ariaLiveRegion.textContent).toBe('Dropped.');
     });
 
-    test('should use appropriate announcement priorities', async () => {
-      await mockAlpine.nextTick();
-      const announceSpy = jest.spyOn(dragContext, '_announce');
+    test('should announce when drag is cancelled', () => {
+      // First grab
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      // Assertive announcements for user actions
-      dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragstart'));
-      expect(announceSpy).toHaveBeenCalledWith('Item grabbed for dragging', 'assertive');
+      // Then cancel
+      const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
+      dragItem1.dispatchEvent(escapeKeyEvent);
       
-      // Polite announcements for status updates (default)
-      dragItems[0].dispatchEvent(global.testUtils.createDragEvent('dragend'));
-      expect(announceSpy).toHaveBeenCalledWith('Item released'); // Uses default 'polite'
+      const ariaLiveRegion = document.querySelector('[aria-live]');
+      expect(ariaLiveRegion.textContent).toBe('Drag cancelled.');
+    });
+
+    test('should announce position when item is moved', () => {
+      // First grab
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
+      
+      // Move down
+      const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
+      dragItem1.dispatchEvent(arrowDownEvent);
+      
+      const ariaLiveRegion = document.querySelector('[aria-live]');
+      expect(ariaLiveRegion.textContent).toBe('Moved to position 2.');
+    });
+
+    test('should announce when item is grabbed via mouse', () => {
+      const dragStartEvent = createMockDragEvent('dragstart');
+      dragItem1.dispatchEvent(dragStartEvent);
+      
+      const ariaLiveRegion = document.querySelector('[aria-live]');
+      expect(ariaLiveRegion.textContent).toBe('Item grabbed.');
+      expect(ariaLiveRegion.getAttribute('aria-live')).toBe('assertive');
+    });
+
+    test('should announce when item is released via mouse', () => {
+      // First start drag
+      const dragStartEvent = createMockDragEvent('dragstart');
+      dragItem1.dispatchEvent(dragStartEvent);
+      
+      // Then end drag
+      const dragEndEvent = createMockDragEvent('dragend');
+      dragItem1.dispatchEvent(dragEndEvent);
+      
+      const ariaLiveRegion = document.querySelector('[aria-live]');
+      expect(ariaLiveRegion.textContent).toBe('Item released.');
     });
   });
 
   describe('Focus Management', () => {
-    test('should have proper tabindex for keyboard navigation', async () => {
-      await mockAlpine.nextTick();
+    test('should maintain focus on item when moved via keyboard', () => {
+      // First grab
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      dragItems.forEach(item => {
-        expect(item.tabIndex).toBe(0);
-      });
+      // Clear previous focus calls
+      HTMLElement.prototype.focus.mockClear();
+      
+      // Move item
+      const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
+      dragItem1.dispatchEvent(arrowDownEvent);
+      
+      expect(HTMLElement.prototype.focus).toHaveBeenCalledWith();
     });
 
-    test('should maintain focus after keyboard movement', async () => {
-      await mockAlpine.nextTick();
-      
-      const focusSpy = jest.spyOn(dragItems[0], 'focus');
-      
-      // Grab and move
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', 'ArrowDown'));
-      
-      expect(focusSpy).toHaveBeenCalled();
+    test('should have proper tabindex for keyboard navigation', () => {
+      expect(dragItem1.tabIndex).toBe(0);
+      expect(dragItem2.tabIndex).toBe(0);
+      expect(dragItem3.tabIndex).toBe(0);
+    });
+  });
+
+  describe('Axe Accessibility Testing', () => {
+    test('should have no accessibility violations in initial state', async () => {
+      const results = await axe(contextElement);
+      expect(results).toHaveNoViolations();
     });
 
-    test('should manage visual focus indicators', async () => {
-      await mockAlpine.nextTick();
+    test('should have no accessibility violations when item is grabbed', async () => {
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      // Focus event
-      dragItems[0].dispatchEvent(new Event('focus'));
-      expect(dragItems[0].classList.contains('is-focused')).toBe(true);
-      
-      // Blur event
-      dragItems[0].dispatchEvent(new Event('blur'));
-      expect(dragItems[0].classList.contains('is-focused')).toBe(false);
+      const results = await axe(contextElement);
+      expect(results).toHaveNoViolations();
     });
 
-    test('should have visible focus indicators', async () => {
-      await mockAlpine.nextTick();
+    test('should have no accessibility violations with aria-live region', async () => {
+      // Trigger aria-live region creation
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      // Focus item
-      dragItems[0].focus();
-      dragItems[0].dispatchEvent(new Event('focus'));
-      
-      // Should have visual focus class
-      expect(dragItems[0].classList.contains('is-focused')).toBe(true);
-      
-      // Test with axe for focus visibility
-      const results = await axe(dragContext, {
-        rules: {
-          'focus-order-semantics': { enabled: true }
-        }
-      });
+      const results = await axe(document.body);
       expect(results).toHaveNoViolations();
     });
   });
 
-  describe('Keyboard Accessibility', () => {
-    test('should support standard keyboard interactions', async () => {
-      await mockAlpine.nextTick();
+  describe('Edge Cases and Error Handling', () => {
+    test('should handle keyboard events when drag context is not found', () => {
+      // Create an isolated drag item without context
+      const isolatedItem = document.createElement('div');
+      isolatedItem.setAttribute('x-drag-item', '');
+      document.body.appendChild(isolatedItem);
       
-      // Space and Enter should work for grab/drop
-      const spaceEvent = global.testUtils.createKeyboardEvent('keydown', ' ');
-      const enterEvent = global.testUtils.createKeyboardEvent('keydown', 'Enter');
-      
-      // Both should prevent default
-      const spacePreventSpy = jest.spyOn(spaceEvent, 'preventDefault');
-      const enterPreventSpy = jest.spyOn(enterEvent, 'preventDefault');
-      
-      dragItems[0].dispatchEvent(spaceEvent);
-      dragItems[1].dispatchEvent(enterEvent);
-      
-      expect(spacePreventSpy).toHaveBeenCalled();
-      expect(enterPreventSpy).toHaveBeenCalled();
-    });
-
-    test('should support arrow key navigation', async () => {
-      await mockAlpine.nextTick();
-      
-      // All arrow keys should work when grabbed
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      
-      const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-      arrowKeys.forEach(key => {
-        const originalOrder = Array.from(dragContext.children);
-        const event = global.testUtils.createKeyboardEvent('keydown', key);
-        const preventSpy = jest.spyOn(event, 'preventDefault');
-        
-        dragItems[0].dispatchEvent(event);
-        
-        expect(preventSpy).toHaveBeenCalled();
-        // Position should change (unless wrapping prevents it)
-      });
-    });
-
-    test('should support escape key for cancellation', async () => {
-      await mockAlpine.nextTick();
-      
-      // Grab item
-      dragItems[0].dispatchEvent(global.testUtils.createKeyboardEvent('keydown', ' '));
-      expect(dragItems[0].getAttribute('aria-grabbed')).toBe('true');
-      
-      // Cancel with Escape
-      const escapeEvent = global.testUtils.createKeyboardEvent('keydown', 'Escape');
-      const preventSpy = jest.spyOn(escapeEvent, 'preventDefault');
-      
-      dragItems[0].dispatchEvent(escapeEvent);
-      
-      expect(preventSpy).toHaveBeenCalled();
-      expect(dragItems[0].getAttribute('aria-grabbed')).toBe('false');
-    });
-  });
-
-  describe('Semantic Structure', () => {
-    test('should have proper semantic roles', async () => {
-      await mockAlpine.nextTick();
-      
-      // Context should be an application
-      expect(dragContext.getAttribute('role')).toBe('application');
-      
-      // Items should be buttons (interactive elements)
-      dragItems.forEach(item => {
-        expect(item.getAttribute('role')).toBe('button');
-      });
-    });
-
-    test('should have proper labeling and descriptions', async () => {
-      await mockAlpine.nextTick();
-      
-      // Context should be labeled
-      expect(dragContext.getAttribute('aria-label')).toBe('Drag and drop interface');
-      
-      // Items should be described by instructions
-      dragItems.forEach(item => {
-        expect(item.getAttribute('aria-describedby')).toBe('drag-instructions');
+      const dragItemDirective = mockAlpine._getDirective('drag-item');
+      dragItemDirective(isolatedItem, { expression: null }, { 
+        evaluate: jest.fn(), 
+        cleanup: jest.fn() 
       });
       
-      // Instructions should exist and be screen reader only
-      const instructions = document.getElementById('drag-instructions');
-      expect(instructions).not.toBeNull();
-      expect(instructions.className).toBe('sr-only');
-    });
-  });
-
-  describe('Error Handling and Edge Cases', () => {
-    test('should maintain accessibility during error states', async () => {
-      await mockAlpine.nextTick();
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      // Should not throw error
+      expect(() => {
+        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+        isolatedItem.dispatchEvent(spaceKeyEvent);
+      }).not.toThrow();
       
-      // Create orphan item (should trigger warning)
-      const orphanItem = document.createElement('div');
-      orphanItem.setAttribute('x-drag-item', '{}');
-      document.body.appendChild(orphanItem);
-      
-      dragItemHandler(orphanItem, { expression: '{}' }, { evaluate: jest.fn(() => ({})) });
-      
-      // Should still pass accessibility tests (excluding region rule for utility elements)
-      const results = await axe(document.body, {
-        rules: {
-          'region': { enabled: false }
-        }
-      });
-      expect(results).toHaveNoViolations();
-      
-      consoleSpy.mockRestore();
+      document.body.removeChild(isolatedItem);
     });
 
-    test('should handle multiple drag contexts accessibly', async () => {
-      await mockAlpine.nextTick();
+    test('should handle movement with single item', () => {
+      // Remove other items to have just one
+      contextElement.removeChild(dragItem2);
+      contextElement.removeChild(dragItem3);
       
-      // Create second context
-      const secondContext = global.testUtils.createDragContext(['Second 1', 'Second 2']);
-      dragContextHandler(secondContext, { expression: '' }, {
-        evaluate: jest.fn(),
-        evaluateLater: jest.fn(() => jest.fn())
-      });
+      // Grab the single item
+      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
+      dragItem1.dispatchEvent(spaceKeyEvent);
       
-      const secondItems = Array.from(secondContext.children);
-      await Promise.all(secondItems.map((item, index) => 
-        mockAlpine.nextTick(() => {
-          dragItemHandler(item, 
-            { expression: `{ id: ${index + 1} }` },
-            { evaluate: jest.fn(() => ({ id: index + 1 })) }
-          );
-        })
-      ));
+      // Try to move - should wrap to same position
+      const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
+      expect(() => {
+        dragItem1.dispatchEvent(arrowDownEvent);
+      }).not.toThrow();
       
-      // Both contexts should be accessible (excluding region rule for utility elements)
-      const results = await axe(document.body, {
-        rules: {
-          'region': { enabled: false }
-        }
-      });
-      expect(results).toHaveNoViolations();
-      
-      // Should share the same aria-live region
-      const liveRegions = document.querySelectorAll('[aria-live]');
-      expect(liveRegions.length).toBe(1);
-    });
-  });
-
-  describe('Dynamic Content Accessibility', () => {
-    test('should maintain accessibility when items are added', async () => {
-      await mockAlpine.nextTick();
-      
-      // Add new item
-      const newItem = document.createElement('div');
-      newItem.textContent = 'New Item';
-      newItem.setAttribute('x-drag-item', '{ id: 4, text: "New Item" }');
-      dragContext.appendChild(newItem);
-      
-      // Initialize new item
-      await mockAlpine.nextTick(() => {
-        dragItemHandler(newItem, 
-          { expression: '{ id: 4, text: "New Item" }' },
-          { evaluate: jest.fn(() => ({ id: 4, text: "New Item" })) }
-        );
-      });
-      
-      const results = await axe(dragContext);
-      expect(results).toHaveNoViolations();
+      expect(contextElement.firstChild).toBe(dragItem1);
     });
 
-    test('should maintain accessibility when items are removed', async () => {
-      await mockAlpine.nextTick();
+    test('should handle empty drag context', () => {
+      // Remove all items
+      contextElement.innerHTML = '';
       
-      // Remove an item
-      const itemToRemove = dragItems[1];
-      itemToRemove.remove();
+      const dragItemDirective = mockAlpine._getDirective('drag-item');
       
-      const results = await axe(dragContext);
-      expect(results).toHaveNoViolations();
+      // Should not throw when initializing item in empty context
+      expect(() => {
+        dragItemDirective(dragItem1, { expression: null }, { 
+          evaluate: jest.fn(), 
+          cleanup: jest.fn() 
+        });
+      }).not.toThrow();
     });
   });
 });

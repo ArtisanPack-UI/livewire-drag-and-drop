@@ -1,176 +1,189 @@
 /**
- * Jest test setup file
+ * Jest Setup File for Livewire Drag and Drop Tests
  * 
- * This file runs before all tests and sets up the testing environment
- * including Alpine.js mocking, jest-axe for accessibility testing,
- * and common utilities for drag and drop testing.
+ * This file sets up the testing environment by mocking necessary
+ * browser APIs, Alpine.js, and Livewire functionality.
  */
 
-import { jest } from '@jest/globals';
-import jestAxe from 'jest-axe';
-const { toHaveNoViolations } = jestAxe;
+import '@testing-library/jest-dom';
 
-// Extend Jest matchers with jest-axe
-expect.extend(toHaveNoViolations);
+// Create Jest-like mock functions for ES modules environment
+const createMockFunction = (implementation) => {
+  const mockFn = implementation || function() {};
+  
+  const wrappedFn = function(...args) {
+    wrappedFn.mock.calls.push(args);
+    const result = mockFn.apply(this, args);
+    wrappedFn.mock.results.push({ type: 'return', value: result });
+    return result;
+  };
+  
+  // Essential Jest mock properties
+  wrappedFn.mock = {
+    calls: [],
+    results: [],
+    instances: [],
+    contexts: []
+  };
+  
+  // Jest spy identifiers
+  wrappedFn._isMockFunction = true;
+  wrappedFn.getMockName = () => 'jest.fn()';
+  
+  wrappedFn.mockReturnValue = (value) => {
+    mockFn.mockImplementation = () => value;
+    return wrappedFn;
+  };
+  wrappedFn.mockImplementation = (impl) => {
+    Object.assign(mockFn, impl);
+    return wrappedFn;
+  };
+  wrappedFn.mockClear = () => {
+    wrappedFn.mock.calls = [];
+    wrappedFn.mock.results = [];
+    wrappedFn.mock.instances = [];
+    wrappedFn.mock.contexts = [];
+    return wrappedFn;
+  };
+  wrappedFn.mockReset = () => {
+    wrappedFn.mockClear();
+    mockFn.mockImplementation = undefined;
+    return wrappedFn;
+  };
+  wrappedFn.mockRestore = () => wrappedFn.mockReset();
+  
+  return wrappedFn;
+};
 
-// Global test utilities
-global.testUtils = {
-  /**
-   * Creates a mock Alpine.js instance for testing
-   */
-  createMockAlpine() {
-    const directives = new Map();
-    
-    return {
-      directive: jest.fn((name, handler) => {
-        directives.set(name, handler);
-      }),
-      nextTick: jest.fn((callback) => {
-        // Execute callback immediately for synchronous testing
-        if (callback) callback();
-        return Promise.resolve();
-      }),
-      // Helper to get registered directives for testing
-      _getDirectives: () => directives
+// Make Jest-like functions available globally
+global.jest = {
+  fn: createMockFunction,
+  spyOn: (object, method) => {
+    const original = object[method];
+    const mockFn = createMockFunction(original);
+    object[method] = mockFn;
+    mockFn.mockRestore = () => {
+      object[method] = original;
     };
+    return mockFn;
+  }
+};
+
+// Mock Alpine.js
+global.Alpine = {
+  directive: function() {},
+  nextTick: function(callback) {
+    if (callback) callback();
+    return Promise.resolve();
   },
+  // Store for registered directives
+  _directives: {},
+  // Helper to get registered directive
+  _getDirective: function(name) {
+    return this._directives[name];
+  }
+};
 
-  /**
-   * Creates a DOM element with drag context
-   */
-  createDragContext(items = ['Item 1', 'Item 2', 'Item 3']) {
-    const container = document.createElement('div');
-    container.setAttribute('x-drag-context', '');
-    
-    items.forEach((item, index) => {
-      const itemElement = document.createElement('div');
-      itemElement.setAttribute('x-drag-item', JSON.stringify({ id: index + 1, text: item }));
-      itemElement.textContent = item;
-      container.appendChild(itemElement);
-    });
-    
-    document.body.appendChild(container);
-    return container;
-  },
-
-  /**
-   * Creates custom events for testing drag and drop
-   */
-  createDragEvent(type, options = {}) {
-    const event = new Event(type, { bubbles: true, cancelable: true });
-    event.dataTransfer = {
-      effectAllowed: 'move',
-      dropEffect: 'move',
-      setData: jest.fn(),
-      getData: jest.fn(),
-      clearData: jest.fn(),
-      types: [],
-      files: [],
-      items: []
-    };
-    
-    // Add additional properties
-    Object.assign(event, options);
-    
-    return event;
-  },
-
-  /**
-   * Creates keyboard events for testing
-   */
-  createKeyboardEvent(type, key, options = {}) {
-    return new KeyboardEvent(type, {
-      key,
-      bubbles: true,
-      cancelable: true,
-      ...options
-    });
-  },
-
-  /**
-   * Waits for DOM mutations to complete
-   */
-  async waitForDOMUpdate() {
-    await new Promise(resolve => setTimeout(resolve, 0));
-  },
-
-  /**
-   * Cleans up the DOM after tests
-   */
-  cleanupDOM() {
-    document.body.innerHTML = '';
-    // Remove any global aria-live regions that might have been created
-    const ariaLiveRegions = document.querySelectorAll('[aria-live]');
-    ariaLiveRegions.forEach(region => region.remove());
-    
-    // Remove drag instructions
-    const instructions = document.getElementById('drag-instructions');
-    if (instructions) {
-      instructions.remove();
-    }
-    
-    // Reset global aria-live region variable in the source code
-    // This is needed because the global variable persists between tests
-    if (typeof window !== 'undefined' && window.globalAriaLiveRegion) {
-      window.globalAriaLiveRegion = null;
-    }
-  },
-
-  /**
-   * Simulates a complete drag and drop operation
-   */
-  async simulateDragAndDrop(sourceElement, targetElement) {
-    const dragStartEvent = this.createDragEvent('dragstart');
-    const dragOverEvent = this.createDragEvent('dragover');
-    const dropEvent = this.createDragEvent('drop');
-
-    sourceElement.dispatchEvent(dragStartEvent);
-    targetElement.dispatchEvent(dragOverEvent);
-    targetElement.dispatchEvent(dropEvent);
-
-    await this.waitForDOMUpdate();
-  },
-
-  /**
-   * Simulates keyboard navigation
-   */
-  async simulateKeyboardNavigation(element, keys) {
-    for (const key of keys) {
-      const keydownEvent = this.createKeyboardEvent('keydown', key);
-      element.dispatchEvent(keydownEvent);
-      await this.waitForDOMUpdate();
+// Mock Livewire
+global.Livewire = {
+  hook: function() {},
+  _hooks: {},
+  // Helper to trigger hooks in tests
+  _triggerHook: function(hookName, ...args) {
+    if (this._hooks[hookName]) {
+      return this._hooks[hookName](...args);
     }
   }
 };
 
-// Setup JSDOM environment enhancements
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: jest.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
-
-// Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  observe() { return null; }
-  disconnect() { return null; }
-  unobserve() { return null; }
+// Mock DataTransfer API
+global.DataTransfer = class DataTransfer {
+  constructor() {
+    this.data = {};
+    this.effectAllowed = 'none';
+    this.dropEffect = 'none';
+  }
+  
+  setData(format, data) {
+    this.data[format] = data;
+  }
+  
+  getData(format) {
+    return this.data[format] || '';
+  }
+  
+  clearData(format) {
+    if (format) {
+      delete this.data[format];
+    } else {
+      this.data = {};
+    }
+  }
 };
 
-// Clean up after each test
-afterEach(() => {
-  global.testUtils.cleanupDOM();
-  jest.clearAllMocks();
-});
+// Mock drag and drop events
+const createMockDragEvent = (type, options = {}) => {
+  const event = new Event(type, { bubbles: true, cancelable: true, ...options });
+  event.dataTransfer = new DataTransfer();
+  event.clientX = options.clientX || 0;
+  event.clientY = options.clientY || 0;
+  return event;
+};
 
-// Global test timeout for async operations
-jest.setTimeout(10000);
+// Add helper methods to global for creating mock events
+global.createMockDragEvent = createMockDragEvent;
+
+global.createMockKeyboardEvent = (type, key, options = {}) => {
+  const event = new KeyboardEvent(type, { 
+    key, 
+    bubbles: true, 
+    cancelable: true, 
+    ...options 
+  });
+  return event;
+};
+
+// Mock getBoundingClientRect
+Element.prototype.getBoundingClientRect = function() {
+  return {
+    top: 0,
+    left: 0,
+    bottom: 100,
+    right: 100,
+    width: 100,
+    height: 100,
+    x: 0,
+    y: 0
+  };
+};
+
+// Mock insertBefore with more realistic behavior
+const originalInsertBefore = Node.prototype.insertBefore;
+Node.prototype.insertBefore = function(newNode, referenceNode) {
+  // Remove from current parent if it exists
+  if (newNode.parentNode) {
+    newNode.parentNode.removeChild(newNode);
+  }
+  return originalInsertBefore.call(this, newNode, referenceNode);
+};
+
+// Mock focus method
+HTMLElement.prototype.focus = function() {};
+
+// Setup DOM
+document.body.innerHTML = '';
+
+// Helper to clean up after each test
+afterEach(() => {
+  // Clear the document body completely - this will reset the global ARIA live region
+  document.body.innerHTML = '';
+  
+  // Clear recentlyMovedKeys by triggering message.processed hook if it exists
+  if (global.Livewire._hooks['message.processed']) {
+    global.Livewire._hooks['message.processed']({}, {});
+  }
+  
+  // Clear stored directives and hooks
+  global.Alpine._directives = {};
+  global.Livewire._hooks = {};
+});
