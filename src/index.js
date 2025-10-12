@@ -3,12 +3,12 @@
  *
  * This file contains the Alpine.js directives for accessible drag-and-drop.
  * It uses a global, stateless event delegation pattern and a robust
- * re-initialization strategy to be completely immune to Livewire DOM replacement.
+ * re-initialization and cleanup strategy.
  *
  * @package    ArtisanPack UI
  * @subpackage Livewire Drag and Drop
- * @since      2.5.0
- * @version    2.5.0
+ * @since      2.0.0
+ * @version    2.0.0
  * @author     ArtisanPack UI Team
  * @copyright  2025 ArtisanPack UI
  * @license    MIT
@@ -18,6 +18,7 @@
 let globalAriaLiveRegion = null;
 let hooksInitialized = false;
 let isDragUpdate = false;
+const temporarilyIgnoredNodes = new Set();
 
 function getGlobalAriaLiveRegion() { if (!globalAriaLiveRegion) { globalAriaLiveRegion = document.createElement('div'); globalAriaLiveRegion.setAttribute('aria-live', 'polite'); globalAriaLiveRegion.setAttribute('aria-atomic', 'true'); globalAriaLiveRegion.className = 'sr-only'; Object.assign(globalAriaLiveRegion.style, { position: 'absolute', width: '1px', height: '1px', padding: '0', margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: '0', }); document.body.appendChild(globalAriaLiveRegion); } return globalAriaLiveRegion; }
 function createAnnounceFunction() { const liveRegion = getGlobalAriaLiveRegion(); return function announce(message, priority = 'polite') { liveRegion.setAttribute('aria-live', priority); liveRegion.textContent = message; }; }
@@ -183,13 +184,21 @@ function registerLivewireHooks(Livewire) {
         if (contextEl && contextEl._recentlyMovedKeys) {
             contextEl._recentlyMovedKeys.forEach(key => {
                 const item = el.querySelector(`[wire\\:key="${key}"]`);
-                if (item) item.__livewire_ignore = true;
+                if (item) {
+                    item.__livewire_ignore = true;
+                    temporarilyIgnoredNodes.add(item);
+                }
             });
         }
     });
 
     Livewire.hook('message.processed', () => {
         isDragUpdate = false;
+
+        temporarilyIgnoredNodes.forEach(node => {
+            delete node.__livewire_ignore;
+        });
+        temporarilyIgnoredNodes.clear();
 
         document.querySelectorAll('[x-drag-context]').forEach(contextEl => {
             delete contextEl._dragContextInitialized;
