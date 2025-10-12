@@ -2,13 +2,13 @@
  * ArtisanPack UI Livewire Drag and Drop
  *
  * This file contains the Alpine.js directives for accessible drag-and-drop.
- * It uses a global event delegation pattern and a robust cleanup/re-initialization
- * strategy to be completely immune to all Livewire DOM replacement strategies.
+ * It uses a global, stateless event delegation pattern and a robust
+ * re-initialization strategy to be completely immune to Livewire DOM replacement.
  *
  * @package    ArtisanPack UI
  * @subpackage Livewire Drag and Drop
- * @since      2.2.0
- * @version    2.2.0
+ * @since      2.5.0
+ * @version    2.5.0
  * @author     ArtisanPack UI Team
  * @copyright  2025 ArtisanPack UI
  * @license    MIT
@@ -25,11 +25,6 @@ function findDragContext(element) { const contextEl = element ? element.closest(
 
 // --- Core Initialization Logic ---
 
-/**
- * Initializes state and helpers on a drag context element.
- * This function is idempotent.
- * @param {HTMLElement} el The [x-drag-context] element.
- */
 function initializeDragContext(el) {
     if (el._dragContextInitialized) return;
 
@@ -51,39 +46,49 @@ function initializeDragContext(el) {
     el._dragContextInitialized = true;
 }
 
-/**
- * Attaches permanent, delegated event listeners to the document body.
- */
-function initializeGlobalListeners() {
-    let contextState = null;
-    let helpers = null;
+function forceRehydrateDraggableItems(container) {
+    container.querySelectorAll('[x-drag-item]').forEach(itemEl => {
+        if (itemEl._dragItemId) {
+            itemEl.draggable = true;
+            itemEl.tabIndex = 0;
+            itemEl.setAttribute('role', 'button');
+            if (!itemEl.hasAttribute('aria-grabbed')) {
+                itemEl.setAttribute('aria-grabbed', 'false');
+            }
+        }
+    });
+}
 
+function initializeGlobalListeners() {
     document.body.addEventListener('dragstart', (e) => {
         const dragItem = e.target.closest('[x-drag-item]');
-        if (!dragItem) return;
         const contextInfo = findDragContext(dragItem);
         if (!contextInfo) return;
-        contextState = contextInfo.state;
-        helpers = contextInfo.helpers;
-        contextState.isDragging = true; contextState.draggedElement = dragItem; contextState.draggedData = { id: dragItem._dragItemId };
-        e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', JSON.stringify(contextState.draggedData));
+
+        const { state, helpers } = contextInfo;
+        state.isDragging = true;
+        state.draggedElement = dragItem;
+        state.draggedData = { id: dragItem._dragItemId };
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', JSON.stringify(state.draggedData));
         dragItem.setAttribute('aria-grabbed', 'true');
         helpers.announce('Item grabbed.', 'assertive');
     });
 
     document.body.addEventListener('dragover', (e) => {
-        const contextEl = e.target.closest('[x-drag-context]');
-        if (contextEl && contextState && contextState.isDragging) {
+        const contextInfo = findDragContext(e.target);
+        if (contextInfo && contextInfo.state.isDragging) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         }
     });
 
     document.body.addEventListener('drop', (e) => {
-        const contextEl = e.target.closest('[x-drag-context]');
-        if (!contextEl || !contextState || !contextState.isDragging) return;
         e.preventDefault();
-        const { state, helpers } = findDragContext(contextEl);
+        const contextInfo = findDragContext(e.target);
+        if (!contextInfo || !contextInfo.state.isDragging) return;
+
+        const { state, helpers } = contextInfo;
         if (state.draggedElement) {
             const targetElement = e.target.closest('[x-drag-item]');
             if (targetElement && targetElement !== state.draggedElement) {
@@ -97,11 +102,18 @@ function initializeGlobalListeners() {
 
     document.body.addEventListener('dragend', (e) => {
         const dragItem = e.target.closest('[x-drag-item]');
-        if (!dragItem || !contextState) return;
-        dragItem.setAttribute('aria-grabbed', 'false');
-        if (contextState) { contextState.isDragging = false; contextState.draggedElement = null; contextState.draggedData = null; }
-        if (helpers) helpers.announce('Item released.');
-        contextState = null; helpers = null;
+        const contextInfo = findDragContext(dragItem);
+        if (dragItem) {
+            dragItem.setAttribute('aria-grabbed', 'false');
+        }
+        if (contextInfo) {
+            if (contextInfo.state.isDragging) {
+                contextInfo.helpers.announce('Item released.');
+            }
+            contextInfo.state.isDragging = false;
+            contextInfo.state.draggedElement = null;
+            contextInfo.state.draggedData = null;
+        }
     });
 
     document.body.addEventListener('keydown', (e) => {
@@ -109,14 +121,16 @@ function initializeGlobalListeners() {
         if (!dragItem || document.activeElement !== dragItem) return;
         const contextInfo = findDragContext(dragItem);
         if (!contextInfo) return;
+
         const { element: contextEl, state, helpers } = contextInfo;
-        let isGrabbed = state.isDragging && state.draggedElement === dragItem;
+        const isGrabbed = state.isDragging && state.draggedElement === dragItem;
 
         const keyActions = {
             ' ': () => {
                 e.preventDefault();
                 if (!isGrabbed) {
-                    state.isDragging = true; state.draggedElement = dragItem; state.draggedData = { id: dragItem._dragItemId };
+                    state.isDragging = true;
+                    state.draggedElement = dragItem;
                     dragItem.setAttribute('aria-grabbed', 'true');
                     helpers.announce('Grabbed. Use arrow keys to move.', 'assertive');
                 } else {
@@ -130,7 +144,8 @@ function initializeGlobalListeners() {
                 if (isGrabbed) {
                     e.preventDefault();
                     dragItem.setAttribute('aria-grabbed', 'false');
-                    state.isDragging = false; state.draggedElement = null; state.draggedData = null;
+                    state.isDragging = false;
+                    state.draggedElement = null;
                     helpers.announce('Drag cancelled.');
                 }
             },
@@ -143,16 +158,21 @@ function initializeGlobalListeners() {
             e.preventDefault();
             const allItems = Array.from(contextEl.querySelectorAll('[x-drag-item]'));
             const currentIndex = allItems.indexOf(dragItem);
-            const targetIndex = direction === 'next' ? (currentIndex + 1) % allItems.length : (currentIndex - 1 + allItems.length) % allItems.length;
-            const targetEl = allItems[targetIndex];
-            targetEl.parentNode.insertBefore(dragItem, direction === 'next' ? targetEl.nextSibling : targetEl);
-            dragItem.focus();
-            helpers.announce(`Moved to position ${targetIndex + 1}.`);
+            const targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+
+            if (targetIndex >= 0 && targetIndex < allItems.length) {
+                const targetEl = allItems[targetIndex];
+                targetEl.parentNode.insertBefore(dragItem, direction === 'next' ? targetEl.nextSibling : targetEl);
+                dragItem.focus();
+                helpers.announce(`Moved to position ${targetIndex + 1}.`);
+            }
         }
 
         if (keyActions[e.key]) keyActions[e.key]();
     });
 }
+
+// --- Livewire & Alpine Registration ---
 
 function registerLivewireHooks(Livewire) {
     if (hooksInitialized) return;
@@ -160,7 +180,7 @@ function registerLivewireHooks(Livewire) {
     Livewire.hook('morph.updating', ({ el }) => {
         if (!isDragUpdate) return;
         const contextEl = el.matches('[x-drag-context]') ? el : el.querySelector('[x-drag-context]');
-        if (contextEl && contextEl._recentlyMovedKeys && contextEl._recentlyMovedKeys.length > 0) {
+        if (contextEl && contextEl._recentlyMovedKeys) {
             contextEl._recentlyMovedKeys.forEach(key => {
                 const item = el.querySelector(`[wire\\:key="${key}"]`);
                 if (item) item.__livewire_ignore = true;
@@ -169,24 +189,17 @@ function registerLivewireHooks(Livewire) {
     });
 
     Livewire.hook('message.processed', () => {
-        // After ANY Livewire update, perform a full cleanup and re-initialization.
         isDragUpdate = false;
 
-        document.querySelectorAll('[x-drag-item]').forEach(itemEl => {
-            // 1. Proactively clean up any "sticky" ignore flags.
-            if (itemEl.__livewire_ignore) {
-                delete itemEl.__livewire_ignore;
-            }
-        });
-
         document.querySelectorAll('[x-drag-context]').forEach(contextEl => {
-            // 2. Re-initialize any replaced parent containers.
+            delete contextEl._dragContextInitialized;
             initializeDragContext(contextEl);
 
-            // 3. Re-initialize children to catch any newly added items.
             if (window.Alpine) {
-                window.Alpine.initTree(contextEl);
+                Alpine.initTree(contextEl);
             }
+
+            forceRehydrateDraggableItems(contextEl);
         });
     });
 
@@ -206,16 +219,13 @@ function registerDirectives(Alpine) {
 
     Alpine.directive('drag-item', (el, { expression }, { evaluate }) => {
         el._dragItemId = evaluate(expression);
-        Alpine.nextTick(() => {
-            el.draggable = true;
-            el.tabIndex = 0;
-            el.setAttribute('role', 'button');
-            el.setAttribute('aria-grabbed', 'false');
-        });
+        el.draggable = true;
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-grabbed', 'false');
     });
 }
 
-// --- Self-Initializing Setup ---
 document.addEventListener('alpine:init', () => {
     registerDirectives(window.Alpine);
 });
