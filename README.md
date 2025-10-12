@@ -1579,19 +1579,16 @@ Fired when a drag operation completes successfully.
 **Event Detail:**
 ```javascript
 {
-    group: string,          // Context group identifier
-    oldIndex: number,       // Original position
-    newIndex: number,       // New position
-    sourceElement: Element, // The dragged element
-    targetElement: Element  // The drop target element
+    orderedIds: []  // Array of item IDs in their new order
 }
 ```
 
 **Usage:**
 ```javascript
 document.addEventListener('drag:end', (event) => {
-    const { oldIndex, newIndex } = event.detail;
-    // Handle reorder logic
+    const { orderedIds } = event.detail;
+    // Handle reorder logic with the new order array
+    $wire.reorderItems(orderedIds);
 });
 ```
 
@@ -1638,6 +1635,79 @@ Tested with:
 - **Alpine.js 3.x**: Required dependency
 - **ES6 Modules**: For optimal performance
 
+## Version 2.0.0 Migration Guide
+
+### Breaking Changes
+
+Version 2.0.0 introduces significant architectural improvements while maintaining the same public API (`x-drag-context` and `x-drag-item` directives). However, there are important changes to be aware of:
+
+#### Event Structure Changes
+
+**Old (v1.0.0):**
+```javascript
+document.addEventListener('drag:end', (event) => {
+    const { group, oldIndex, newIndex, sourceElement, targetElement } = event.detail;
+    // Handle with index-based logic
+});
+```
+
+**New (v2.0.0):**
+```javascript
+document.addEventListener('drag:end', (event) => {
+    const { orderedIds } = event.detail;
+    // Handle with complete ordered array
+    $wire.reorderItems(orderedIds);
+});
+```
+
+#### Architectural Improvements
+
+- **Stateless Event Delegation**: The new architecture uses a global, stateless event delegation pattern that's immune to Livewire's DOM morphing
+- **Race Condition Fixes**: Resolved fundamental race conditions between Livewire's `message.processed` hook and Alpine.js's `initTree` function
+- **Automatic Rehydration**: New `forceRehydrateDraggableItems` function ensures all items remain draggable after Livewire updates
+- **Improved Stability**: Draggable items no longer become unresponsive after Livewire updates
+
+#### Migration Steps
+
+1. **Update Event Handlers**: Replace `oldIndex/newIndex` logic with `orderedIds` array handling
+2. **Backend Updates**: Modify your Livewire component methods to accept the complete ordered array:
+
+```php
+#[On('drag:end')]
+public function reorderItems(array $orderedIds): void
+{
+    // Update your data structure with the new order
+    $this->items = collect($orderedIds)
+        ->map(fn($id) => $this->items->firstWhere('id', $id))
+        ->filter()
+        ->values()
+        ->toArray();
+}
+```
+
+3. **CSS Classes**: The `.is-grabbing` class behavior remains the same, no changes needed
+4. **No Directive Changes**: `x-drag-context` and `x-drag-item` usage remains identical
+
+### New Features in 2.0.0
+
+#### Automatic Rehydration Function
+
+The new `forceRehydrateDraggableItems` function automatically ensures all draggable items maintain their functionality after Livewire updates. This function is called automatically by the package, but advanced users can access it if needed:
+
+```javascript
+// Available globally after package initialization
+// Called automatically after every Livewire update
+forceRehydrateDraggableItems(containerElement);
+```
+
+#### Enhanced Livewire Integration
+
+Version 2.0.0 provides seamless integration with Livewire's DOM morphing through improved hooks:
+
+- **`morph.updating` Hook**: Temporarily ignores recently moved items during morphing
+- **`message.processed` Hook**: Automatically reinitializes contexts and rehydrates items
+- **Global State Management**: Maintains drag state across Livewire updates
+
 ## Advanced Usage
 
 ### Custom Event Handling
@@ -1645,16 +1715,10 @@ Tested with:
 ```javascript
 // Multiple event listeners
 document.addEventListener('drag:end', (event) => {
-    const { group, oldIndex, newIndex } = event.detail;
+    const { orderedIds } = event.detail;
     
-    switch(group) {
-        case 'todos':
-            updateTodoOrder(oldIndex, newIndex);
-            break;
-        case 'kanban':
-            moveKanbanCard(oldIndex, newIndex);
-            break;
-    }
+    // Handle reorder logic with the complete ordered array
+    $wire.reorderItems(orderedIds);
 });
 ```
 

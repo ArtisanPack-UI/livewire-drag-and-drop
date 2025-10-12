@@ -5,7 +5,7 @@
  * and focus management to ensure full accessibility compliance.
  */
 
-import LivewireDragAndDrop from '../src/index.js';
+import '../src/index.js';
 import { configureAxe } from 'jest-axe';
 
 // Create axe instance
@@ -72,8 +72,9 @@ describe('Livewire Drag and Drop - Accessibility', () => {
     
     mockAlpine = global.Alpine;
     
-    // Initialize the library
-    LivewireDragAndDrop(mockAlpine);
+    // Trigger auto-registration
+    document.dispatchEvent(new Event('alpine:init'));
+    document.dispatchEvent(new Event('livewire:init'));
     
     // Set up a typical drag context with items
     contextElement = document.createElement('div');
