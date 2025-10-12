@@ -143,6 +143,37 @@ global.createMockKeyboardEvent = (type, key, options = {}) => {
   return event;
 };
 
+// Helper function for proper keyboard event simulation with the new architecture
+global.simulateKeyboardEvent = (element, key) => {
+  // Set the element as the active element (required by new architecture)
+  Object.defineProperty(document, 'activeElement', {
+    value: element,
+    writable: true,
+    configurable: true
+  });
+  
+  // Also call focus on the element to ensure proper state
+  element.focus();
+  
+  // Create event that will bubble to document.body
+  const event = new KeyboardEvent('keydown', { 
+    key, 
+    bubbles: true, 
+    cancelable: true
+  });
+  
+  // Set target property manually since it's readonly in real events
+  Object.defineProperty(event, 'target', {
+    value: element,
+    configurable: true
+  });
+  
+  // Dispatch on document.body where the global listener is attached
+  document.body.dispatchEvent(event);
+  
+  return event;
+};
+
 // Mock getBoundingClientRect
 Element.prototype.getBoundingClientRect = function() {
   return {

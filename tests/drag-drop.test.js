@@ -5,7 +5,7 @@
  * and complete drag-and-drop workflows.
  */
 
-import LivewireDragAndDrop from '../src/index.js';
+import '../src/index.js';
 
 describe('Livewire Drag and Drop - Mouse Interactions', () => {
   let mockAlpine;
@@ -47,8 +47,9 @@ describe('Livewire Drag and Drop - Mouse Interactions', () => {
     mockAlpine = global.Alpine;
     mockLivewire = global.Livewire;
     
-    // Initialize the library
-    LivewireDragAndDrop(mockAlpine);
+    // Trigger auto-registration
+    document.dispatchEvent(new Event('alpine:init'));
+    document.dispatchEvent(new Event('livewire:init'));
     
     // Set up a typical drag context with items
     contextElement = document.createElement('div');
@@ -387,7 +388,7 @@ describe('Livewire Drag and Drop - Mouse Interactions', () => {
       contextElement.dispatchEvent(dropEvent);
       
       // Test that Livewire hook would prevent updates for moved items
-      const updateHook = mockLivewire._hooks['element.updating'];
+      const updateHook = mockLivewire._hooks['morph.updating'];
       
       const testElement = document.createElement('div');
       testElement.setAttribute('x-drag-item', '');

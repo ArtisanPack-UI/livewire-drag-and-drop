@@ -1,6 +1,6 @@
 {
   "name": "@artisanpack-ui/livewire-drag-and-drop",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "An accessibility-first drag-and-drop utility for Livewire and Alpine.js.",
   "keywords": [
     "livewire",

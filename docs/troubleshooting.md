@@ -67,12 +67,17 @@ Common issues and solutions for ArtisanPack UI Livewire Drag and Drop.
 **Problem**: Drag operations work visually but backend isn't updated.
 
 **Solutions**:
-1. Ensure your Livewire component listens for the `drag:end` event:
+1. Ensure your Livewire component listens for the `drag:end` event with the correct 2.0.0 signature:
    ```php
    #[On('drag:end')]
-   public function reorderItems(): void
+   public function reorderItems(array $orderedIds): void
    {
-       // Handle reordering logic
+       // Update your data structure with the new order
+       $this->items = collect($orderedIds)
+           ->map(fn($id) => $this->items->firstWhere('id', $id))
+           ->filter()
+           ->values()
+           ->toArray();
    }
    ```
 
@@ -81,14 +86,19 @@ Common issues and solutions for ArtisanPack UI Livewire Drag and Drop.
    @foreach($items as $index => $item)
        <div 
            wire:key="item-{{ $item['id'] }}"
-           x-drag-item="{{ json_encode($item) }}"
+           x-drag-item="{{ $item['id'] }}"
        >
            {{ $item['text'] }}
        </div>
    @endforeach
    ```
 
-3. Verify the `x-drag-context` directive includes proper event handling
+3. Verify the `x-drag-context` directive includes proper event handling:
+   ```blade
+   <div x-drag-context @drag:end="$wire.reorderItems($event.detail.orderedIds)">
+       <!-- draggable items -->
+   </div>
+   ```
 
 ### Items Revert After Drag
 
@@ -205,6 +215,51 @@ Common issues and solutions for ArtisanPack UI Livewire Drag and Drop.
    ```
 2. Test on actual devices, not just browser dev tools
 3. Ensure proper viewport meta tag is set
+
+## Version 2.0.0 Specific Issues
+
+### Items Become Unresponsive After Livewire Updates
+
+**Problem**: After adding or deleting items via Livewire, existing items lose their drag functionality.
+
+**Solution**: This issue was resolved in 2.0.0. If you're still experiencing this:
+1. Ensure you're using version 2.0.0 or later
+2. Check that the `forceRehydrateDraggableItems` function is working (it's called automatically)
+3. Verify there are no JavaScript errors preventing rehydration
+
+### Migration from 1.0.0 Issues
+
+**Problem**: After upgrading from 1.0.0, drag operations don't work or events aren't fired.
+
+**Solutions**:
+1. Update your event handlers to use the new `orderedIds` structure:
+   ```javascript
+   // Old (1.0.0)
+   const { oldIndex, newIndex } = event.detail;
+   
+   // New (2.0.0)
+   const { orderedIds } = event.detail;
+   ```
+
+2. Update your Livewire component methods:
+   ```php
+   // Old (1.0.0) 
+   public function reorderItems(int $oldIndex, int $newIndex): void
+   
+   // New (2.0.0)
+   public function reorderItems(array $orderedIds): void
+   ```
+
+3. Clear any cached JavaScript/CSS files after upgrading
+
+### Race Condition Issues
+
+**Problem**: Items occasionally become unresponsive or duplicate during rapid interactions.
+
+**Solution**: Version 2.0.0 resolves race conditions between Livewire and Alpine.js. If you still experience issues:
+1. Check browser console for JavaScript errors
+2. Ensure you're not manually interfering with the `morph.updating` or `message.processed` hooks
+3. Verify no conflicting JavaScript is modifying DOM elements during updates
 
 ## Debug Mode
 

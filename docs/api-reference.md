@@ -30,13 +30,9 @@ Creates a drag-and-drop context container that manages draggable items and handl
 
 The expression receives an event object with the following detail structure:
 
-```typescript
-interface DragEndDetail {
-    group: string;          // Context group identifier
-    oldIndex: number;       // Original position of the item
-    newIndex: number;       // New position of the item
-    sourceElement: Element; // The dragged DOM element
-    targetElement: Element; // The drop target DOM element
+```javascript
+{
+    orderedIds: []  // Array of item IDs in their new order
 }
 ```
 
@@ -192,17 +188,18 @@ document.addEventListener('drag:end', (event) => {
 
 **Livewire Integration:**
 
-```javascript
-// In Alpine.js component
-x-data="{
-    handleDragEnd(event) {
-        const { oldIndex, newIndex } = event.detail;
-        if (oldIndex !== newIndex) {
-            $wire.reorderItems(oldIndex, newIndex);
+```html
+<div 
+    x-data="{
+        handleDragEnd(event) {
+            const { orderedIds } = event.detail;
+            $wire.reorderItems(orderedIds);
         }
-    }
-}"
-@drag:end="handleDragEnd($event)"
+    }"
+    @drag:end="handleDragEnd($event)"
+>
+    <!-- Draggable items -->
+</div>
 ```
 
 **Multiple Context Handling:**
@@ -529,12 +526,12 @@ document.addEventListener('drag:end', (event) => {
 
 **Update Steps:**
 
-```javascript
-// Old (0.x)
-@drag:end="handleDrop($event.detail.oldIndex, $event.detail.newIndex)"
+```html
+<!-- Old (0.x) -->
+<div @drag:end="handleDrop($event.detail.oldIndex, $event.detail.newIndex)">
 
-// New (1.x)
-@drag:end="handleDrop($event.detail)"
+<!-- New (2.x) -->
+<div @drag:end="handleDrop($event.detail.orderedIds)">
 ```
 
 ```css
