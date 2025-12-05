@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-12-05
+
+### Fixed
+
+* **Added missing default export** to fix build errors when importing the package with default import syntax (`import LivewireDragAndDrop from "@artisanpack-ui/livewire-drag-and-drop"`). The package now properly exports a default function for manual Alpine.js plugin registration.
+* **Added named exports** (`registerDirectives`, `registerLivewireHooks`) for advanced usage scenarios requiring granular control over initialization.
+
+### Notes
+
+* This fix is fully backward compatible. Existing applications using side-effect imports (`import "@artisanpack-ui/livewire-drag-and-drop"`) will continue working without any changes, as automatic registration via `alpine:init` and `livewire:init` event listeners remains intact.
+
+### Props
+@eyler
+
 ## [2.0.0] - 2025-10-12
 
 ### 🚀 Major Architectural Rework for Stability
