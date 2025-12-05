@@ -235,6 +235,22 @@ function registerDirectives(Alpine) {
     });
 }
 
+// --- Default Export for Manual Registration ---
+
+export default function LivewireDragAndDrop(Alpine) {
+    registerDirectives(Alpine);
+
+    // Also register Livewire hooks if Livewire is available
+    if (window.Livewire) {
+        registerLivewireHooks(window.Livewire);
+    }
+}
+
+// Export individual functions for advanced usage
+export { registerDirectives, registerLivewireHooks };
+
+// --- Automatic Registration (for backward compatibility) ---
+
 document.addEventListener('alpine:init', () => {
     registerDirectives(window.Alpine);
 });

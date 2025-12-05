@@ -56,7 +56,11 @@ npm install @artisanpack-ui/livewire-drag-and-drop
 
 ### Step 2: Configure Alpine.js
 
-#### Using Vite (ES Modules)
+The package supports two import methods. Choose the one that best fits your needs.
+
+#### Method 1: Manual Registration (Recommended)
+
+This method gives you full control over when and how the plugin is registered.
 
 Create or update your `resources/js/app.js` file:
 
@@ -72,6 +76,22 @@ document.addEventListener('alpine:init', () => {
 // Start Alpine.js
 Alpine.start()
 ```
+
+#### Method 2: Automatic Registration (Side-Effect Import)
+
+This method automatically registers the plugin when Alpine.js and Livewire are available.
+
+```javascript
+import Alpine from 'alpinejs'
+import '@artisanpack-ui/livewire-drag-and-drop'  // Auto-registers when Alpine/Livewire are ready
+
+// Start Alpine.js
+Alpine.start()
+```
+
+**When to use each method:**
+- **Manual Registration**: Use when you need precise control over plugin initialization or want to register with a specific Alpine instance
+- **Automatic Registration**: Use for simpler setups where the plugin should automatically initialize when Alpine.js is ready
 
 Then in your Blade layout:
 

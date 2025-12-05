@@ -27,7 +27,11 @@ npm install @artisanpack-ui/livewire-drag-and-drop
 
 ### Setup with Alpine.js
 
-#### ES Module (Recommended)
+The package supports two import methods:
+
+#### Method 1: Manual Registration (Recommended)
+
+Gives you full control over plugin initialization.
 
 ```javascript
 import Alpine from 'alpinejs'
@@ -36,6 +40,17 @@ import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop'
 document.addEventListener('alpine:init', () => {
     LivewireDragAndDrop(Alpine)
 })
+
+Alpine.start()
+```
+
+#### Method 2: Automatic Registration
+
+Automatically registers when Alpine.js is ready.
+
+```javascript
+import Alpine from 'alpinejs'
+import '@artisanpack-ui/livewire-drag-and-drop'  // Auto-registers
 
 Alpine.start()
 ```
