@@ -6,6 +6,70 @@ title: API Reference - Livewire Drag and Drop
 
 Complete reference for ArtisanPack UI Livewire Drag and Drop directives, events, and methods.
 
+## Module Exports
+
+### Default Export
+
+The package exports a default function for manual plugin registration with Alpine.js.
+
+#### Syntax
+
+```javascript
+import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop'
+
+document.addEventListener('alpine:init', () => {
+    LivewireDragAndDrop(Alpine)
+})
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `Alpine` | `object` | Yes | The Alpine.js instance to register directives with |
+
+### Named Exports
+
+For advanced usage, the package also exports individual functions:
+
+#### `registerDirectives(Alpine)`
+
+Registers the drag-and-drop directives (`x-drag-context`, `x-drag-item`) with Alpine.js.
+
+```javascript
+import { registerDirectives } from '@artisanpack-ui/livewire-drag-and-drop'
+
+document.addEventListener('alpine:init', () => {
+    registerDirectives(Alpine)
+})
+```
+
+#### `registerLivewireHooks(Livewire)`
+
+Registers Livewire lifecycle hooks for proper DOM morphing support.
+
+```javascript
+import { registerLivewireHooks } from '@artisanpack-ui/livewire-drag-and-drop'
+
+document.addEventListener('livewire:init', () => {
+    registerLivewireHooks(Livewire)
+})
+```
+
+**Note:** When using the default export `LivewireDragAndDrop(Alpine)`, it automatically calls both `registerDirectives` and `registerLivewireHooks` (if Livewire is available). The named exports are provided for advanced scenarios where granular control is needed.
+
+### Side-Effect Import
+
+For automatic registration, you can use a side-effect import:
+
+```javascript
+import '@artisanpack-ui/livewire-drag-and-drop'
+```
+
+This automatically registers the directives when Alpine.js initializes and Livewire hooks when Livewire initializes.
+
+---
+
 ## Alpine.js Directives
 
 ### `x-drag-context`
