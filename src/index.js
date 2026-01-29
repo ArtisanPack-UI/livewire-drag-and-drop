@@ -192,7 +192,7 @@ function registerLivewireHooks(Livewire) {
         }
     });
 
-    Livewire.hook('message.processed', () => {
+    Livewire.hook('morphed', ({ el, component }) => {
         isDragUpdate = false;
 
         temporarilyIgnoredNodes.forEach(node => {
@@ -200,14 +200,10 @@ function registerLivewireHooks(Livewire) {
         });
         temporarilyIgnoredNodes.clear();
 
-        document.querySelectorAll('[x-drag-context]').forEach(contextEl => {
+        const root = el || document;
+        root.querySelectorAll('[x-drag-context]').forEach(contextEl => {
             delete contextEl._dragContextInitialized;
             initializeDragContext(contextEl);
-
-            if (window.Alpine) {
-                Alpine.initTree(contextEl);
-            }
-
             forceRehydrateDraggableItems(contextEl);
         });
     });
