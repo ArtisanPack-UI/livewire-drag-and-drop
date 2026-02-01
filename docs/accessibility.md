@@ -700,6 +700,6 @@ function preserveFocus(callback) {
 
 **Related Documentation:**
 
-- [Getting Started Guide](getting-started.md) - Basic implementation
-- [API Reference](api-reference.md) - Technical specifications
-- [Contributing Guide](contributing.md) - Accessibility testing requirements
+- [Getting Started Guide](Getting-Started) - Basic implementation
+- [API Reference](Api-Reference) - Technical specifications
+- [Contributing Guide](Contributing) - Accessibility testing requirements

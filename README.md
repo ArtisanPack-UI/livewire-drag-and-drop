@@ -1876,7 +1876,7 @@ We welcome contributions! Please see our [Contributing Guidelines](docs/contribu
 
 ```bash
 # Clone repository
-git clone https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop.git
+git clone https://github.com/ArtisanPack-UI/livewire-drag-and-drop.git
 cd livewire-drag-and-drop
 
 # Install dependencies
@@ -1907,8 +1907,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 - 📖 **Documentation**: [docs/](docs/)
-- 🐛 **Bug Reports**: [GitLab Issues](https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop/issues)
-- 💬 **Community**: [ArtisanPack UI Discussions](https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop/-/wikis/home)
+- 🐛 **Bug Reports**: [GitLab Issues](https://github.com/ArtisanPack-UI/livewire-drag-and-drop/issues)
+- 💬 **Community**: [ArtisanPack UI Discussions](https://github.com/ArtisanPack-UI/livewire-drag-and-drop/-/wikis/home)
 - 📧 **Email**: support@artisanpack-ui.com
 
 ## Credits

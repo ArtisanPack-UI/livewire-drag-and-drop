@@ -279,9 +279,9 @@ This will output detailed console messages about drag operations, state changes,
 
 If you're still experiencing issues:
 
-1. Check the [API Reference](api-reference.md) for detailed directive documentation
-2. Review the [Accessibility Guide](accessibility.md) for WCAG compliance information
-3. Consult the [Getting Started Guide](getting-started.md) for setup instructions
+1. Check the [API Reference](Api-Reference) for detailed directive documentation
+2. Review the [Accessibility Guide](Accessibility) for WCAG compliance information
+3. Consult the [Getting Started Guide](Getting-Started) for setup instructions
 4. Create an issue in the project repository with:
    - Browser and version information
    - Code examples that reproduce the issue

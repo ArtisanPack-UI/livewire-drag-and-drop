@@ -486,10 +486,10 @@ Congratulations! You now have a working drag-and-drop component. Here's what you
 
 ### Learn More
 
-- [API Reference](api-reference.md) - Complete directive and event documentation
-- [Accessibility Guide](accessibility.md) - In-depth accessibility best practices  
-- [Advanced Examples](examples.md) - Complex implementation patterns
-- [Contributing Guide](contributing.md) - Help improve the package
+- [API Reference](Api-Reference) - Complete directive and event documentation
+- [Accessibility Guide](Accessibility) - In-depth accessibility best practices  
+- [Advanced Examples](Examples) - Complex implementation patterns
+- [Contributing Guide](Contributing) - Help improve the package
 
 ## Troubleshooting
 
@@ -514,11 +514,11 @@ Congratulations! You now have a working drag-and-drop component. Here's what you
 
 If you encounter issues:
 
-1. Check the [troubleshooting guide](troubleshooting.md)
-2. Review [common patterns](examples.md)
+1. Check the [troubleshooting guide](Troubleshooting)
+2. Review [common patterns](Examples)
 3. Search [existing issues](https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop/issues)
 4. Create a new issue with reproduction steps
 
 ---
 
-**Next:** [API Reference](api-reference.md) - Learn about all available directives and events
+**Next:** [API Reference](Api-Reference) - Learn about all available directives and events

@@ -10,7 +10,7 @@ Welcome to the complete documentation for ArtisanPack UI's Livewire Drag and Dro
 
 New to ArtisanPack UI Livewire Drag and Drop? Start here:
 
-### [📚 Getting Started Guide](./getting-started.md)
+### [📚 Getting Started Guide](Getting-Started)
 Your comprehensive introduction to installation, configuration, and basic implementation. Learn how to set up the package in your Laravel application and create your first drag-and-drop interface.
 
 **Topics covered:**
@@ -24,7 +24,7 @@ Your comprehensive introduction to installation, configuration, and basic implem
 
 ## 📖 Documentation
 
-### [🔧 API Reference](./api-reference.md)
+### [🔧 API Reference](Api-Reference)
 Complete technical reference for all directives, events, and methods available in the package.
 
 **What you'll find:**
@@ -34,7 +34,7 @@ Complete technical reference for all directives, events, and methods available i
 - Method signatures and parameters
 - Advanced configuration options
 
-### [♿ Accessibility Guide](./accessibility.md)
+### [♿ Accessibility Guide](Accessibility)
 Comprehensive guide to the accessibility features and best practices for inclusive drag-and-drop interfaces.
 
 **Key topics:**
@@ -45,7 +45,7 @@ Comprehensive guide to the accessibility features and best practices for inclusi
 - Live announcements and feedback
 - Accessibility testing strategies
 
-### [🛠️ Troubleshooting](./troubleshooting.md)
+### [🛠️ Troubleshooting](Troubleshooting)
 Solutions to common issues and debugging guidance for smooth implementation.
 
 **Common solutions for:**
@@ -60,7 +60,7 @@ Solutions to common issues and debugging guidance for smooth implementation.
 
 ## 🤝 Contributing
 
-### [💡 Contributing Guide](./contributing.md)
+### [💡 Contributing Guide](Contributing)
 Learn how to contribute to the ArtisanPack UI Livewire Drag and Drop project.
 
 **Guidelines for:**
@@ -96,9 +96,9 @@ Learn how to contribute to the ArtisanPack UI Livewire Drag and Drop project.
 
 If you need assistance or have questions:
 
-1. **Check the documentation** - Start with the [Getting Started Guide](./getting-started.md)
-2. **Review troubleshooting** - Common issues are covered in [Troubleshooting](./troubleshooting.md)
+1. **Check the documentation** - Start with the [Getting Started Guide](Getting-Started)
+2. **Review troubleshooting** - Common issues are covered in [Troubleshooting](Troubleshooting)
 3. **Search existing issues** - Check the project repository for known issues
-4. **Open a new issue** - Follow the guidelines in [Contributing Guide](./contributing.md)
+4. **Open a new issue** - Follow the guidelines in [Contributing Guide](Contributing)
 
 Welcome to building accessible, intuitive drag-and-drop interfaces with ArtisanPack UI! 🎉

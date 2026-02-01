@@ -610,6 +610,6 @@ document.addEventListener('drag:end', (event) => {
 
 **Related Documentation:**
 
-- [Getting Started Guide](getting-started.md) - Installation and basic usage
-- [Accessibility Guide](accessibility.md) - Detailed accessibility information
-- [Examples](examples.md) - Advanced implementation patterns
+- [Getting Started Guide](Getting-Started) - Installation and basic usage
+- [Accessibility Guide](Accessibility) - Detailed accessibility information
+- [Examples](Examples) - Advanced implementation patterns
