@@ -204,16 +204,22 @@ HTMLElement.prototype.focus = function() {};
 // Setup DOM
 document.body.innerHTML = '';
 
+// Import reset function
+import { resetGlobalState } from '../src/index.js';
+
 // Helper to clean up after each test
 afterEach(() => {
   // Clear the document body completely - this will reset the global ARIA live region
   document.body.innerHTML = '';
-  
+
+  // Reset the module's global state (aria-live region, hooks, listeners flags)
+  resetGlobalState();
+
   // Clear recentlyMovedKeys by triggering message.processed hook if it exists
   if (global.Livewire._hooks['message.processed']) {
     global.Livewire._hooks['message.processed']({}, {});
   }
-  
+
   // Clear stored directives and hooks
   global.Alpine._directives = {};
   global.Livewire._hooks = {};

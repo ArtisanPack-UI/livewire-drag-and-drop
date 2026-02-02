@@ -17,10 +17,11 @@
 // --- Global State & Helpers ---
 let globalAriaLiveRegion = null;
 let hooksInitialized = false;
+let listenersInitialized = false;
 let isDragUpdate = false;
 const temporarilyIgnoredNodes = new Set();
 
-function getGlobalAriaLiveRegion() { if (!globalAriaLiveRegion) { globalAriaLiveRegion = document.createElement('div'); globalAriaLiveRegion.setAttribute('aria-live', 'polite'); globalAriaLiveRegion.setAttribute('aria-atomic', 'true'); globalAriaLiveRegion.className = 'sr-only'; Object.assign(globalAriaLiveRegion.style, { position: 'absolute', width: '1px', height: '1px', padding: '0', margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: '0', }); document.body.appendChild(globalAriaLiveRegion); } return globalAriaLiveRegion; }
+function getGlobalAriaLiveRegion() { if (!globalAriaLiveRegion || !globalAriaLiveRegion.isConnected) { globalAriaLiveRegion = document.createElement('div'); globalAriaLiveRegion.setAttribute('aria-live', 'polite'); globalAriaLiveRegion.setAttribute('aria-atomic', 'true'); globalAriaLiveRegion.className = 'sr-only'; Object.assign(globalAriaLiveRegion.style, { position: 'absolute', width: '1px', height: '1px', padding: '0', margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: '0', }); document.body.appendChild(globalAriaLiveRegion); } return globalAriaLiveRegion; }
 function createAnnounceFunction() { const liveRegion = getGlobalAriaLiveRegion(); return function announce(message, priority = 'polite') { liveRegion.setAttribute('aria-live', priority); liveRegion.textContent = message; }; }
 function findDragContext(element) { const contextEl = element ? element.closest('[x-drag-context]') : null; if (contextEl && contextEl._dragContextState) { return { element: contextEl, state: contextEl._dragContextState, helpers: contextEl._dragContextHelpers }; } return null; }
 
@@ -216,8 +217,6 @@ function registerLivewireHooks(Livewire) {
 }
 
 function registerDirectives(Alpine) {
-    let listenersInitialized = false;
-
     Alpine.directive('drag-context', (el) => {
         if (!listenersInitialized) {
             initializeGlobalListeners();
@@ -248,6 +247,16 @@ export default function LivewireDragAndDrop(Alpine) {
 
 // Export individual functions for advanced usage
 export { registerDirectives, registerLivewireHooks };
+
+// Reset function for testing purposes
+// Note: We don't reset listenersInitialized because the listeners on document.body
+// are not removed, so resetting the flag would cause duplicate listeners
+export function resetGlobalState() {
+    globalAriaLiveRegion = null;
+    hooksInitialized = false;
+    isDragUpdate = false;
+    temporarilyIgnoredNodes.clear();
+}
 
 // --- Automatic Registration (for backward compatibility) ---
 

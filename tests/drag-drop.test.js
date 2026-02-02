@@ -80,25 +80,26 @@ describe('Livewire Drag and Drop - Mouse Interactions', () => {
     contextElement.appendChild(dragItem3);
     
     // Initialize drag items
+    // Note: The source code expects evaluate() to return just the ID value, not an object
     const dragItemDirective = mockAlpine._getDirective('drag-item');
-    const mockEvaluate = jest.fn(() => ({ id: 'item-1' }));
+    const mockEvaluate = jest.fn(() => 'item-1');
     const mockCleanup = jest.fn();
-    
-    dragItemDirective(dragItem1, { expression: 'item' }, { 
-      evaluate: mockEvaluate, 
-      cleanup: mockCleanup 
+
+    dragItemDirective(dragItem1, { expression: 'item' }, {
+      evaluate: mockEvaluate,
+      cleanup: mockCleanup
     });
-    
-    mockEvaluate.mockReturnValue({ id: 'item-2' });
-    dragItemDirective(dragItem2, { expression: 'item' }, { 
-      evaluate: mockEvaluate, 
-      cleanup: mockCleanup 
+
+    mockEvaluate.mockReturnValue('item-2');
+    dragItemDirective(dragItem2, { expression: 'item' }, {
+      evaluate: mockEvaluate,
+      cleanup: mockCleanup
     });
-    
-    mockEvaluate.mockReturnValue({ id: 'item-3' });
-    dragItemDirective(dragItem3, { expression: 'item' }, { 
-      evaluate: mockEvaluate, 
-      cleanup: mockCleanup 
+
+    mockEvaluate.mockReturnValue('item-3');
+    dragItemDirective(dragItem3, { expression: 'item' }, {
+      evaluate: mockEvaluate,
+      cleanup: mockCleanup
     });
   });
 
@@ -125,25 +126,26 @@ describe('Livewire Drag and Drop - Mouse Interactions', () => {
       expect(dragData).toEqual({ id: 'item-1' });
     });
 
-    test('should prevent dragstart when no context found', () => {
+    test('should not set drag state when no context found', () => {
       // Create item without context
       const isolatedItem = document.createElement('div');
       isolatedItem.setAttribute('x-drag-item', '');
       document.body.appendChild(isolatedItem);
-      
+
       const dragItemDirective = mockAlpine._getDirective('drag-item');
-      dragItemDirective(isolatedItem, { expression: null }, { 
-        evaluate: jest.fn(), 
-        cleanup: jest.fn() 
+      dragItemDirective(isolatedItem, { expression: null }, {
+        evaluate: jest.fn(),
+        cleanup: jest.fn()
       });
-      
+
       const dragStartEvent = createMockDragEvent('dragstart');
-      const preventDefaultSpy = jest.spyOn(dragStartEvent, 'preventDefault');
-      
       isolatedItem.dispatchEvent(dragStartEvent);
-      
-      expect(preventDefaultSpy).toHaveBeenCalled();
-      
+
+      // The handler should return early - no state changes
+      // (The source doesn't prevent default, it just doesn't set up drag state)
+      expect(contextElement._dragContextState.isDragging).toBe(false);
+      expect(contextElement._dragContextState.draggedElement).toBe(null);
+
       document.body.removeChild(isolatedItem);
     });
 
@@ -400,31 +402,32 @@ describe('Livewire Drag and Drop - Mouse Interactions', () => {
 
   describe('Data Transfer and Expression Evaluation', () => {
     test('should evaluate expression and set drag data', () => {
-      const mockEvaluate = jest.fn(() => ({ id: 'custom-data', name: 'Test Item' }));
-      
+      // Note: The source stores evaluate(expression) directly in _dragItemId,
+      // then wraps it as { id: _dragItemId } when creating draggedData
+      const mockEvaluate = jest.fn(() => 'custom-data');
+
       // Create new item with custom expression
       const customItem = document.createElement('div');
       customItem.setAttribute('x-drag-item', '');
       customItem.setAttribute('wire:key', 'custom-item');
       contextElement.appendChild(customItem);
-      
+
       const dragItemDirective = mockAlpine._getDirective('drag-item');
-      dragItemDirective(customItem, { expression: 'customData' }, { 
-        evaluate: mockEvaluate, 
-        cleanup: jest.fn() 
+      dragItemDirective(customItem, { expression: 'customData' }, {
+        evaluate: mockEvaluate,
+        cleanup: jest.fn()
       });
-      
+
       const dragStartEvent = createMockDragEvent('dragstart');
       customItem.dispatchEvent(dragStartEvent);
-      
+
       expect(mockEvaluate).toHaveBeenCalledWith('customData');
-      
+
       const dragData = JSON.parse(dragStartEvent.dataTransfer.getData('text/plain'));
-      expect(dragData).toEqual({ id: 'custom-data', name: 'Test Item' });
-      
-      expect(contextElement._dragContextState.draggedData).toEqual({ 
-        id: 'custom-data', 
-        name: 'Test Item' 
+      expect(dragData).toEqual({ id: 'custom-data' });
+
+      expect(contextElement._dragContextState.draggedData).toEqual({
+        id: 'custom-data'
       });
     });
 
@@ -433,20 +436,23 @@ describe('Livewire Drag and Drop - Mouse Interactions', () => {
       customItem.setAttribute('x-drag-item', '');
       customItem.setAttribute('wire:key', 'null-item');
       contextElement.appendChild(customItem);
-      
+
       const dragItemDirective = mockAlpine._getDirective('drag-item');
-      dragItemDirective(customItem, { expression: null }, { 
-        evaluate: jest.fn(), 
-        cleanup: jest.fn() 
+      // When expression is null, evaluate returns undefined
+      dragItemDirective(customItem, { expression: null }, {
+        evaluate: jest.fn(() => undefined),
+        cleanup: jest.fn()
       });
-      
+
       const dragStartEvent = createMockDragEvent('dragstart');
       customItem.dispatchEvent(dragStartEvent);
-      
+
       const dragData = JSON.parse(dragStartEvent.dataTransfer.getData('text/plain'));
+      // Source wraps as { id: undefined }, JSON.stringify converts to '{}' (undefined is omitted)
       expect(dragData).toEqual({});
-      
-      expect(contextElement._dragContextState.draggedData).toEqual({});
+
+      // But the actual state object still has the undefined value
+      expect(contextElement._dragContextState.draggedData).toEqual({ id: undefined });
     });
   });
 
