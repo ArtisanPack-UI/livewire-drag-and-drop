@@ -112,7 +112,7 @@ function initializeGlobalListeners() {
         const contextInfo = findDragContext(dragItem);
         if (!contextInfo) return;
 
-        const { element: contextEl, state, helpers } = contextInfo;
+        const { element: contextEl, state, helpers, group } = contextInfo;
         state.isDragging = true;
         state.draggedElement = dragItem;
         state.draggedData = { id: dragItem._dragItemId };
@@ -122,6 +122,12 @@ function initializeGlobalListeners() {
             sourceContext: contextInfo,
             draggedElement: dragItem
         };
+
+        console.log('[Drag Groups] Drag start:', {
+            itemId: dragItem._dragItemId,
+            group: group || 'none',
+            sourceContext: contextEl
+        });
 
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', JSON.stringify(state.draggedData));
@@ -136,7 +142,9 @@ function initializeGlobalListeners() {
         if (!targetContextInfo) return;
 
         // Check if target can accept drop from source
-        if (canAcceptDrop(globalDragState.sourceContext, targetContextInfo)) {
+        const canAccept = canAcceptDrop(globalDragState.sourceContext, targetContextInfo);
+
+        if (canAccept) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         }
@@ -150,11 +158,22 @@ function initializeGlobalListeners() {
         if (!targetContextInfo) return;
 
         // Verify drop is allowed
-        if (!canAcceptDrop(globalDragState.sourceContext, targetContextInfo)) return;
+        if (!canAcceptDrop(globalDragState.sourceContext, targetContextInfo)) {
+            console.log('[Drag Groups] Drop rejected - contexts not compatible');
+            return;
+        }
 
         const { element: sourceContextEl, state: sourceState } = globalDragState.sourceContext;
         const { element: targetContextEl, helpers: targetHelpers } = targetContextInfo;
         const draggedElement = globalDragState.draggedElement;
+
+        const isCrossContext = sourceContextEl !== targetContextEl;
+        console.log('[Drag Groups] Drop:', {
+            isCrossContext,
+            sourceContext: sourceContextEl,
+            targetContext: targetContextEl,
+            itemId: draggedElement._dragItemId
+        });
 
         if (draggedElement) {
             const targetElement = e.target.closest('[x-drag-item]');
@@ -294,18 +313,28 @@ function registerLivewireHooks(Livewire) {
 }
 
 function registerDirectives(Alpine) {
+    // Register drag-group FIRST so it sets _dragGroup before drag-context reads it
+    Alpine.directive('drag-group', (el, { expression }, { evaluate }) => {
+        // Store the group name on the drag context element
+        const groupName = evaluate(expression);
+        el._dragGroup = groupName;
+        console.log('[Drag Groups] Set drag group:', groupName, 'on element:', el);
+    });
+
     Alpine.directive('drag-context', (el) => {
         if (!listenersInitialized) {
             initializeGlobalListeners();
             listenersInitialized = true;
         }
-        initializeDragContext(el);
-    });
 
-    Alpine.directive('drag-group', (el, { expression }, { evaluate }) => {
-        // Store the group name on the drag context element
-        const groupName = evaluate(expression);
-        el._dragGroup = groupName;
+        // Read the drag group if it was set
+        if (el._dragGroup) {
+            console.log('[Drag Groups] Context initialized with group:', el._dragGroup);
+        } else {
+            console.log('[Drag Groups] Context initialized without group (isolated)');
+        }
+
+        initializeDragContext(el);
     });
 
     Alpine.directive('drag-item', (el, { expression }, { evaluate }) => {
