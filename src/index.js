@@ -21,6 +21,7 @@ let listenersInitialized = false;
 let isDragUpdate = false;
 const temporarilyIgnoredNodes = new Set();
 let globalDragState = null; // Tracks current drag operation across contexts
+let crossContextMoveInfo = null; // Tracks cross-context move details for morph preservation
 
 function getGlobalAriaLiveRegion() { if (!globalAriaLiveRegion || !globalAriaLiveRegion.isConnected) { globalAriaLiveRegion = document.createElement('div'); globalAriaLiveRegion.setAttribute('aria-live', 'polite'); globalAriaLiveRegion.setAttribute('aria-atomic', 'true'); globalAriaLiveRegion.className = 'sr-only'; Object.assign(globalAriaLiveRegion.style, { position: 'absolute', width: '1px', height: '1px', padding: '0', margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: '0', }); document.body.appendChild(globalAriaLiveRegion); } return globalAriaLiveRegion; }
 
@@ -54,34 +55,73 @@ function initializeDragContext(el) {
     el._dragContextState = { isDragging: false, draggedElement: null, draggedData: null };
     el._dragContextHelpers = {
         announce: createAnnounceFunction(),
-        finalizeDrop: (grabbedElement, sourceContextEl = null) => {
+        finalizeDrop: (grabbedElement, sourceContextEl = null, dropInfo = null) => {
             if (!grabbedElement) return;
             isDragUpdate = true;
-            const allItems = Array.from(el.querySelectorAll('[x-drag-item]'));
-            const orderedIds = allItems.map(item => item._dragItemId);
-            el._recentlyMovedKeys = allItems.map(item => item.getAttribute('wire:key'));
 
             // Check if this is a cross-context drop
             const isCrossContext = sourceContextEl && sourceContextEl !== el;
 
             if (isCrossContext) {
-                // Cross-context drop - dispatch special event with source/target info
+                // Cross-context drop - build correct ordered IDs including the moved block
                 const sourceItems = Array.from(sourceContextEl.querySelectorAll('[x-drag-item]'));
-                const sourceOrderedIds = sourceItems.map(item => item._dragItemId);
-                sourceContextEl._recentlyMovedKeys = sourceItems.map(item => item.getAttribute('wire:key'));
+                const targetItems = Array.from(el.querySelectorAll('[x-drag-item]'));
+
+                const movedBlockId = grabbedElement._dragItemId;
+                const movedBlockWireKey = grabbedElement.getAttribute('wire:key');
+
+                // Build source IDs (remove the moved block)
+                const sourceOrderedIds = sourceItems
+                    .filter(item => item._dragItemId !== movedBlockId)
+                    .map(item => item._dragItemId);
+
+                // Build target IDs (insert the moved block at the correct position)
+                const targetOrderedIds = targetItems.map(item => item._dragItemId);
+                const targetIndex = dropInfo?.targetIndex ?? targetOrderedIds.length;
+                targetOrderedIds.splice(targetIndex, 0, movedBlockId);
+
+                // Mark all items in both contexts for preservation
+                const sourceKeys = sourceItems.map(item => item.getAttribute('wire:key'));
+                const targetKeys = targetItems.map(item => item.getAttribute('wire:key'));
+
+                sourceContextEl._recentlyMovedKeys = sourceKeys;
+                el._recentlyMovedKeys = targetKeys;
+
+                // Store cross-context move info for morph preservation
+                crossContextMoveInfo = {
+                    movedBlockWireKey: movedBlockWireKey,
+                    sourceContext: sourceContextEl,
+                    targetContext: el,
+                    allSourceKeys: sourceKeys,
+                    allTargetKeys: targetKeys
+                };
+
+                console.log('[Drag Groups] Cross-context drop - dispatching event', {
+                    movedBlockId,
+                    movedBlockWireKey,
+                    sourceOrderedIds,
+                    targetOrderedIds,
+                    targetIndex,
+                    sourceKeys,
+                    targetKeys
+                });
 
                 el.dispatchEvent(new CustomEvent('drag:cross-context', {
                     bubbles: true,
                     detail: {
-                        itemId: grabbedElement._dragItemId,
+                        itemId: movedBlockId,
                         sourceContext: sourceContextEl,
                         sourceOrderedIds: sourceOrderedIds,
                         targetContext: el,
-                        targetOrderedIds: orderedIds
+                        targetOrderedIds: targetOrderedIds
                     }
                 }));
             } else {
                 // Same context drop - dispatch standard event
+                const allItems = Array.from(el.querySelectorAll('[x-drag-item]'));
+                const orderedIds = allItems.map(item => item._dragItemId);
+                el._recentlyMovedKeys = allItems.map(item => item.getAttribute('wire:key'));
+
                 el.dispatchEvent(new CustomEvent('drag:end', { bubbles: true, detail: { orderedIds } }));
             }
 
@@ -177,19 +217,42 @@ function initializeGlobalListeners() {
 
         if (draggedElement) {
             const targetElement = e.target.closest('[x-drag-item]');
+            let dropInfo = null;
 
-            // Handle drop positioning
-            if (targetElement && targetElement !== draggedElement) {
-                const rect = targetElement.getBoundingClientRect();
-                const isAfter = (e.clientY - rect.top) > (rect.height / 2);
-                targetElement.parentNode.insertBefore(draggedElement, isAfter ? targetElement.nextSibling : targetElement);
-            } else if (!targetElement && targetContextEl.contains(e.target)) {
-                // Dropped in empty space of context - append to end
-                targetContextEl.appendChild(draggedElement);
+            if (isCrossContext) {
+                // For cross-context drops, calculate drop position but DON'T move with JavaScript
+                const allTargetItems = Array.from(targetContextEl.querySelectorAll('[x-drag-item]'));
+                let targetIndex = allTargetItems.length; // Default: append to end
+
+                if (targetElement && targetElement !== draggedElement) {
+                    const rect = targetElement.getBoundingClientRect();
+                    const isAfter = (e.clientY - rect.top) > (rect.height / 2);
+                    const baseIndex = allTargetItems.indexOf(targetElement);
+                    targetIndex = isAfter ? baseIndex + 1 : baseIndex;
+                }
+
+                dropInfo = {
+                    targetIndex: targetIndex,
+                    draggedId: draggedElement._dragItemId
+                };
+
+                console.log('[Drag Groups] Cross-context drop - calculated position', dropInfo);
+                targetHelpers.finalizeDrop(draggedElement, sourceContextEl, dropInfo);
+            } else {
+                // For same-context drops, move the element normally
+                if (targetElement && targetElement !== draggedElement) {
+                    const rect = targetElement.getBoundingClientRect();
+                    const isAfter = (e.clientY - rect.top) > (rect.height / 2);
+                    const insertBefore = isAfter ? targetElement.nextSibling : targetElement;
+                    targetElement.parentNode.insertBefore(draggedElement, insertBefore);
+                } else if (!targetElement && targetContextEl.contains(e.target)) {
+                    // Dropped in empty space of context - append to end
+                    targetContextEl.appendChild(draggedElement);
+                }
+
+                // Finalize drop
+                targetHelpers.finalizeDrop(draggedElement, sourceContextEl, dropInfo);
             }
-
-            // Finalize drop with source context for cross-context detection
-            targetHelpers.finalizeDrop(draggedElement, sourceContextEl);
         }
     });
 
@@ -273,30 +336,24 @@ function initializeGlobalListeners() {
 // --- Livewire & Alpine Registration ---
 
 function registerLivewireHooks(Livewire) {
+    console.log('[Drag Groups] registerLivewireHooks called', { hooksInitialized });
     if (hooksInitialized) return;
 
-    Livewire.hook('morph.updating', ({ el }) => {
-        if (!isDragUpdate) return;
-        const contextEl = el.matches('[x-drag-context]') ? el : el.querySelector('[x-drag-context]');
-        if (contextEl && contextEl._recentlyMovedKeys) {
-            contextEl._recentlyMovedKeys.forEach(key => {
-                const item = el.querySelector(`[wire\\:key="${key}"]`);
-                if (item) {
-                    item.__livewire_ignore = true;
-                    temporarilyIgnoredNodes.add(item);
-                }
-            });
-        }
-    });
+    console.log('[Drag Groups] Registering Livewire hooks...');
 
-    Livewire.hook('message.processed', () => {
+    // No need for morph.updating hook anymore - we let Livewire handle cross-context moves
+
+    Livewire.hook('morphed', ({ el, component }) => {
+        console.log('[Drag Groups] morphed hook running', {
+            isDragUpdate,
+            componentId: component.id
+        });
+
+        if (!isDragUpdate) return;
+
         isDragUpdate = false;
 
-        temporarilyIgnoredNodes.forEach(node => {
-            delete node.__livewire_ignore;
-        });
-        temporarilyIgnoredNodes.clear();
-
+        // Re-initialize drag contexts and Alpine after cross-context drops
         document.querySelectorAll('[x-drag-context]').forEach(contextEl => {
             delete contextEl._dragContextInitialized;
             initializeDragContext(contextEl);
@@ -307,9 +364,12 @@ function registerLivewireHooks(Livewire) {
 
             forceRehydrateDraggableItems(contextEl);
         });
+
+        console.log('[Drag Groups] Morph cleanup complete');
     });
 
     hooksInitialized = true;
+    console.log('[Drag Groups] Livewire hooks registered successfully');
 }
 
 function registerDirectives(Alpine) {
@@ -369,6 +429,9 @@ export function resetGlobalState() {
     hooksInitialized = false;
     isDragUpdate = false;
     globalDragState = null;
+    crossContextMoveInfo = null;
+    clonedMovedElement = null;
+    targetInsertionPoint = null;
     temporarilyIgnoredNodes.clear();
 }
 
