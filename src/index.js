@@ -316,7 +316,8 @@ function registerDirectives(Alpine) {
     // Register drag-group FIRST so it sets _dragGroup before drag-context reads it
     Alpine.directive('drag-group', (el, { expression }, { evaluate }) => {
         // Store the group name on the drag context element
-        const groupName = evaluate(expression);
+        // Use expression directly as a string (don't evaluate it as JavaScript)
+        const groupName = expression;
         el._dragGroup = groupName;
         console.log('[Drag Groups] Set drag group:', groupName, 'on element:', el);
     });
