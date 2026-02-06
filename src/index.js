@@ -8,7 +8,7 @@
  * @package    ArtisanPack UI
  * @subpackage Livewire Drag and Drop
  * @since      2.0.0
- * @version    2.0.0
+ * @version    2.1.0
  * @author     ArtisanPack UI Team
  * @copyright  2025 ArtisanPack UI
  * @license    MIT
@@ -20,10 +20,31 @@ let hooksInitialized = false;
 let listenersInitialized = false;
 let isDragUpdate = false;
 const temporarilyIgnoredNodes = new Set();
+let globalDragState = null; // Tracks current drag operation across contexts
 
 function getGlobalAriaLiveRegion() { if (!globalAriaLiveRegion || !globalAriaLiveRegion.isConnected) { globalAriaLiveRegion = document.createElement('div'); globalAriaLiveRegion.setAttribute('aria-live', 'polite'); globalAriaLiveRegion.setAttribute('aria-atomic', 'true'); globalAriaLiveRegion.className = 'sr-only'; Object.assign(globalAriaLiveRegion.style, { position: 'absolute', width: '1px', height: '1px', padding: '0', margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: '0', }); document.body.appendChild(globalAriaLiveRegion); } return globalAriaLiveRegion; }
+
 function createAnnounceFunction() { const liveRegion = getGlobalAriaLiveRegion(); return function announce(message, priority = 'polite') { liveRegion.setAttribute('aria-live', priority); liveRegion.textContent = message; }; }
-function findDragContext(element) { const contextEl = element ? element.closest('[x-drag-context]') : null; if (contextEl && contextEl._dragContextState) { return { element: contextEl, state: contextEl._dragContextState, helpers: contextEl._dragContextHelpers }; } return null; }
+
+function findDragContext(element) { const contextEl = element ? element.closest('[x-drag-context]') : null; if (contextEl && contextEl._dragContextState) { return { element: contextEl, state: contextEl._dragContextState, helpers: contextEl._dragContextHelpers, group: contextEl._dragGroup }; } return null; }
+
+/**
+ * Check if a drop target can accept items from the dragged source.
+ * Returns true if same context OR same drag group.
+ */
+function canAcceptDrop(sourceContext, targetContext) {
+    if (!sourceContext || !targetContext) return false;
+
+    // Same context - always allow
+    if (sourceContext.element === targetContext.element) return true;
+
+    // Different contexts - check if they share a group
+    if (sourceContext.group && targetContext.group && sourceContext.group === targetContext.group) {
+        return true;
+    }
+
+    return false;
+}
 
 // --- Core Initialization Logic ---
 
@@ -33,13 +54,37 @@ function initializeDragContext(el) {
     el._dragContextState = { isDragging: false, draggedElement: null, draggedData: null };
     el._dragContextHelpers = {
         announce: createAnnounceFunction(),
-        finalizeDrop: (grabbedElement) => {
+        finalizeDrop: (grabbedElement, sourceContextEl = null) => {
             if (!grabbedElement) return;
             isDragUpdate = true;
             const allItems = Array.from(el.querySelectorAll('[x-drag-item]'));
             const orderedIds = allItems.map(item => item._dragItemId);
             el._recentlyMovedKeys = allItems.map(item => item.getAttribute('wire:key'));
-            el.dispatchEvent(new CustomEvent('drag:end', { bubbles: true, detail: { orderedIds } }));
+
+            // Check if this is a cross-context drop
+            const isCrossContext = sourceContextEl && sourceContextEl !== el;
+
+            if (isCrossContext) {
+                // Cross-context drop - dispatch special event with source/target info
+                const sourceItems = Array.from(sourceContextEl.querySelectorAll('[x-drag-item]'));
+                const sourceOrderedIds = sourceItems.map(item => item._dragItemId);
+                sourceContextEl._recentlyMovedKeys = sourceItems.map(item => item.getAttribute('wire:key'));
+
+                el.dispatchEvent(new CustomEvent('drag:cross-context', {
+                    bubbles: true,
+                    detail: {
+                        itemId: grabbedElement._dragItemId,
+                        sourceContext: sourceContextEl,
+                        sourceOrderedIds: sourceOrderedIds,
+                        targetContext: el,
+                        targetOrderedIds: orderedIds
+                    }
+                }));
+            } else {
+                // Same context drop - dispatch standard event
+                el.dispatchEvent(new CustomEvent('drag:end', { bubbles: true, detail: { orderedIds } }));
+            }
+
             el._dragContextState.isDragging = false;
             el._dragContextState.draggedElement = null;
             el._dragContextState.draggedData = null;
@@ -67,10 +112,17 @@ function initializeGlobalListeners() {
         const contextInfo = findDragContext(dragItem);
         if (!contextInfo) return;
 
-        const { state, helpers } = contextInfo;
+        const { element: contextEl, state, helpers } = contextInfo;
         state.isDragging = true;
         state.draggedElement = dragItem;
         state.draggedData = { id: dragItem._dragItemId };
+
+        // Store global drag state for cross-context operations
+        globalDragState = {
+            sourceContext: contextInfo,
+            draggedElement: dragItem
+        };
+
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', JSON.stringify(state.draggedData));
         dragItem.setAttribute('aria-grabbed', 'true');
@@ -78,8 +130,13 @@ function initializeGlobalListeners() {
     });
 
     document.body.addEventListener('dragover', (e) => {
-        const contextInfo = findDragContext(e.target);
-        if (contextInfo && contextInfo.state.isDragging) {
+        if (!globalDragState) return;
+
+        const targetContextInfo = findDragContext(e.target);
+        if (!targetContextInfo) return;
+
+        // Check if target can accept drop from source
+        if (canAcceptDrop(globalDragState.sourceContext, targetContextInfo)) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         }
@@ -87,27 +144,44 @@ function initializeGlobalListeners() {
 
     document.body.addEventListener('drop', (e) => {
         e.preventDefault();
-        const contextInfo = findDragContext(e.target);
-        if (!contextInfo || !contextInfo.state.isDragging) return;
+        if (!globalDragState) return;
 
-        const { state, helpers } = contextInfo;
-        if (state.draggedElement) {
+        const targetContextInfo = findDragContext(e.target);
+        if (!targetContextInfo) return;
+
+        // Verify drop is allowed
+        if (!canAcceptDrop(globalDragState.sourceContext, targetContextInfo)) return;
+
+        const { element: sourceContextEl, state: sourceState } = globalDragState.sourceContext;
+        const { element: targetContextEl, helpers: targetHelpers } = targetContextInfo;
+        const draggedElement = globalDragState.draggedElement;
+
+        if (draggedElement) {
             const targetElement = e.target.closest('[x-drag-item]');
-            if (targetElement && targetElement !== state.draggedElement) {
+
+            // Handle drop positioning
+            if (targetElement && targetElement !== draggedElement) {
                 const rect = targetElement.getBoundingClientRect();
                 const isAfter = (e.clientY - rect.top) > (rect.height / 2);
-                targetElement.parentNode.insertBefore(state.draggedElement, isAfter ? targetElement.nextSibling : targetElement);
+                targetElement.parentNode.insertBefore(draggedElement, isAfter ? targetElement.nextSibling : targetElement);
+            } else if (!targetElement && targetContextEl.contains(e.target)) {
+                // Dropped in empty space of context - append to end
+                targetContextEl.appendChild(draggedElement);
             }
-            helpers.finalizeDrop(state.draggedElement);
+
+            // Finalize drop with source context for cross-context detection
+            targetHelpers.finalizeDrop(draggedElement, sourceContextEl);
         }
     });
 
     document.body.addEventListener('dragend', (e) => {
         const dragItem = e.target.closest('[x-drag-item]');
         const contextInfo = findDragContext(dragItem);
+
         if (dragItem) {
             dragItem.setAttribute('aria-grabbed', 'false');
         }
+
         if (contextInfo) {
             if (contextInfo.state.isDragging) {
                 contextInfo.helpers.announce('Item released.');
@@ -116,6 +190,9 @@ function initializeGlobalListeners() {
             contextInfo.state.draggedElement = null;
             contextInfo.state.draggedData = null;
         }
+
+        // Clear global drag state
+        globalDragState = null;
     });
 
     document.body.addEventListener('keydown', (e) => {
@@ -225,6 +302,12 @@ function registerDirectives(Alpine) {
         initializeDragContext(el);
     });
 
+    Alpine.directive('drag-group', (el, { expression }, { evaluate }) => {
+        // Store the group name on the drag context element
+        const groupName = evaluate(expression);
+        el._dragGroup = groupName;
+    });
+
     Alpine.directive('drag-item', (el, { expression }, { evaluate }) => {
         el._dragItemId = evaluate(expression);
         el.draggable = true;
@@ -255,6 +338,7 @@ export function resetGlobalState() {
     globalAriaLiveRegion = null;
     hooksInitialized = false;
     isDragUpdate = false;
+    globalDragState = null;
     temporarilyIgnoredNodes.clear();
 }
 
