@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Build, test, and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # Puppeteer is only needed for the real-browser suite (npm run test:browser).
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+
+      - name: Test with coverage
+        run: npm run test:ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          NOTES_FILE="$(mktemp)"
+          awk -v ver="$TAG_VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { capture = 1; next }
+            capture && /^## \[/       { exit }
+            capture                    { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "No CHANGELOG entry found for version $TAG_VERSION"
+            exit 1
+          fi
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "${{ steps.notes.outputs.notes_file }}"
+
+  sync-docs:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: Import docs on docs site
+
+    steps:
+      - name: Queue documentation and changelog imports
+        env:
+          DOCS_API_TOKEN: ${{ secrets.DOCS_API_TOKEN }}
+          DOCS_PACKAGE_SLUG: ${{ vars.DOCS_PACKAGE_SLUG || github.event.repository.name }}
+        run: |
+          if [ -z "$DOCS_API_TOKEN" ]; then
+            echo "::notice::DOCS_API_TOKEN is not set; skipping docs-site import."
+            exit 0
+          fi
+
+          for IMPORT in import-docs import-changelog; do
+            echo "Triggering $IMPORT for $DOCS_PACKAGE_SLUG"
+            curl --fail-with-body -sS --retry 3 -X POST \
+              "https://docs.artisanpackui.dev/api/v1/packages/${DOCS_PACKAGE_SLUG}/${IMPORT}" \
+              -H "Authorization: Bearer ${DOCS_API_TOKEN}" \
+              -H "Accept: application/json"
+            echo
+          done
