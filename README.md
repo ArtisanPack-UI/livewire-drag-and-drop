@@ -396,7 +396,7 @@ npm run test:browser  # keyboard and mouse tests in headless Chrome (Puppeteer)
 npm run build         # dist/ (ES module + UMD)
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [changelog](CHANGELOG.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [changelog](CHANGELOG.md). Full guides — connected containers, events, configuration, styling, accessibility, and upgrading — are in [docs/](docs/home.md).
 
 ## License
 

@@ -1,303 +1,105 @@
 ---
-title: Troubleshooting Guide - Livewire Drag and Drop
+title: Troubleshooting
 ---
 
-# Troubleshooting Guide
+# Troubleshooting
 
-Common issues and solutions for ArtisanPack UI Livewire Drag and Drop.
+## Setup
 
-## Installation Issues
+### Nothing happens when I drag
 
-### Package Not Found
+1. **Is the package loaded before Alpine starts?** The directives are registered on `alpine:init`. Import the package in the same bundle as Livewire (or before your own `Alpine.start()`), or load the CDN script before Alpine's.
+2. **Is there more than one Alpine?** With Livewire 3 or 4, don't also `import Alpine from 'alpinejs'` and start it — Livewire bundles Alpine. Two copies means the directives may be registered on the one that isn't running. The console usually shows "Detected multiple instances of Alpine running".
+3. **Is the item inside a context?** An `x-drag-item` only works inside an `x-drag-context`.
+4. **Did the drag start from a form control?** Drags don't start from inputs, textareas, selects, `contenteditable` regions, or elements marked `data-drag-ignore`.
+5. **Did you move far enough?** A mouse drag starts after 5px of movement; a touch drag after holding for 200ms. See `dragThreshold` and `touchDelay` in [[Configuration and Translations]].
 
-**Problem**: `npm install @artisanpack-ui/livewire-drag-and-drop` fails with package not found error.
+### `LivewireDragAndDrop is not defined`
 
-**Solutions**:
-1. Check if you have access to the private registry
-2. Try using the CDN version instead:
-   ```html
-   <script src="https://unpkg.com/@artisanpack-ui/livewire-drag-and-drop@latest/dist/livewire-drag-and-drop.js"></script>
-   ```
-3. Verify your npm credentials and registry settings
+`window.LivewireDragAndDrop` is set when the package script runs. Make sure the script that calls `LivewireDragAndDrop.configure()` runs after the package — for example inside an `alpine:init` listener, as shown in [[Configuration and Translations#translating-globally]].
 
-### Alpine.js Not Detected
+## Events
 
-**Problem**: Error message "Alpine is not defined" or directives not working.
+### My `@drag:end` listener never fires
 
-**Solutions**:
-1. Ensure Alpine.js is loaded before the drag-and-drop plugin:
-   ```javascript
-   import Alpine from 'alpinejs'
-   import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop'
-   
-   document.addEventListener('alpine:init', () => {
-       LivewireDragAndDrop(Alpine)
-   })
-   
-   Alpine.start()
-   ```
+Events **don't bubble**. Put the listener on the `x-drag-context` element itself, not on a wrapper, `document`, or a Livewire `#[On]` attribute. This changed in 2.1 — see [[Upgrading]].
 
-2. For CDN users, ensure proper script order:
-   ```html
-   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-   <script defer src="https://unpkg.com/@artisanpack-ui/livewire-drag-and-drop@latest/dist/livewire-drag-and-drop.js"></script>
-   ```
+### My server method runs twice for one move
 
-## Functionality Issues
+For a move between contexts, `drag:end` fires on both contexts. Only act in the receiving one:
 
-### Drag Operations Not Working
-
-**Problem**: Items are not draggable or drag events don't fire.
-
-**Solutions**:
-1. Check that `x-drag-context` wraps `x-drag-item` elements:
-   ```html
-   <div x-drag-context="handleReorder($event.detail)">
-       <div x-drag-item="{ id: 1 }">Item 1</div>
-       <div x-drag-item="{ id: 2 }">Item 2</div>
-   </div>
-   ```
-
-2. Verify JavaScript is enabled and no console errors exist
-3. Ensure proper CSS is applied (see getting-started.md for required styles)
-4. Check that the container has sufficient height and width
-
-### Livewire Updates Not Triggering
-
-**Problem**: Drag operations work visually but backend isn't updated.
-
-**Solutions**:
-1. Ensure your Livewire component listens for the `drag:end` event with the correct 2.0.0 signature:
-   ```php
-   #[On('drag:end')]
-   public function reorderItems(array $orderedIds): void
-   {
-       // Update your data structure with the new order
-       $this->items = collect($orderedIds)
-           ->map(fn($id) => $this->items->firstWhere('id', $id))
-           ->filter()
-           ->values()
-           ->toArray();
-   }
-   ```
-
-2. Check that `wire:key` attributes are present on draggable items:
-   ```blade
-   @foreach($items as $index => $item)
-       <div 
-           wire:key="item-{{ $item['id'] }}"
-           x-drag-item="{{ $item['id'] }}"
-       >
-           {{ $item['text'] }}
-       </div>
-   @endforeach
-   ```
-
-3. Verify the `x-drag-context` directive includes proper event handling:
-   ```blade
-   <div x-drag-context @drag:end="$wire.reorderItems($event.detail.orderedIds)">
-       <!-- draggable items -->
-   </div>
-   ```
-
-### Items Revert After Drag
-
-**Problem**: Items snap back to original position after dragging.
-
-**Solutions**:
-1. Ensure your Livewire component properly updates the data order:
-   ```php
-   public function reorderItems(): void
-   {
-       $newOrder = request('order', []);
-       
-       foreach ($newOrder as $index => $itemId) {
-           $this->items = collect($this->items)
-               ->map(function ($item) use ($index, $itemId) {
-                   if ($item['id'] === $itemId) {
-                       $item['order'] = $index;
-                   }
-                   return $item;
-               })
-               ->sortBy('order')
-               ->values()
-               ->toArray();
-       }
-   }
-   ```
-
-2. Check that the component re-renders with the new order
-3. Verify no conflicting CSS transitions are interfering
-
-## Accessibility Issues
-
-### Screen Reader Not Announcing
-
-**Problem**: Screen readers don't announce drag operations.
-
-**Solutions**:
-1. Ensure the `.sr-only` CSS class is properly defined:
-   ```css
-   .sr-only {
-       position: absolute !important;
-       width: 1px !important;
-       height: 1px !important;
-       padding: 0 !important;
-       margin: -1px !important;
-       overflow: hidden !important;
-       clip: rect(0, 0, 0, 0) !important;
-       white-space: nowrap !important;
-       border: 0 !important;
-   }
-   ```
-
-2. Check that ARIA live regions are not being blocked by ad blockers or privacy tools
-3. Test with different screen readers (NVDA, JAWS, VoiceOver)
-
-### Keyboard Navigation Not Working
-
-**Problem**: Arrow keys and space bar don't work for dragging.
-
-**Solutions**:
-1. Verify items have proper `tabindex` and `role` attributes (automatically added)
-2. Check for JavaScript errors in browser console
-3. Ensure no other keyboard event handlers are preventing default behavior
-4. Test focus management by tabbing through items
-
-## Performance Issues
-
-### Sluggish Drag Operations
-
-**Problem**: Dragging feels slow or unresponsive.
-
-**Solutions**:
-1. Reduce the number of items in large lists (implement pagination or virtualization)
-2. Optimize CSS transitions and animations:
-   ```css
-   .drag-item {
-       transition: transform 0.2s ease;
-   }
-   ```
-3. Check for expensive JavaScript operations in event handlers
-4. Consider using `requestAnimationFrame` for smooth animations
-
-### Memory Leaks
-
-**Problem**: Browser memory usage increases over time.
-
-**Solutions**:
-1. Ensure event listeners are properly cleaned up
-2. Check for circular references in JavaScript
-3. Monitor DOM nodes for proper garbage collection
-4. Use browser dev tools to profile memory usage
-
-## Browser Compatibility
-
-### Safari Issues
-
-**Problem**: Drag operations don't work properly in Safari.
-
-**Solutions**:
-1. Ensure proper polyfills are loaded for older Safari versions
-2. Check that touch events are properly handled
-3. Verify CSS `-webkit-` prefixes are included where needed
-
-### Mobile Browser Issues
-
-**Problem**: Touch dragging doesn't work on mobile devices.
-
-**Solutions**:
-1. Add touch event handling CSS:
-   ```css
-   .drag-item {
-       touch-action: none;
-   }
-   ```
-2. Test on actual devices, not just browser dev tools
-3. Ensure proper viewport meta tag is set
-
-## Version 2.0.0 Specific Issues
-
-### Items Become Unresponsive After Livewire Updates
-
-**Problem**: After adding or deleting items via Livewire, existing items lose their drag functionality.
-
-**Solution**: This issue was resolved in 2.0.0. If you're still experiencing this:
-1. Ensure you're using version 2.0.0 or later
-2. Check that the `forceRehydrateDraggableItems` function is working (it's called automatically)
-3. Verify there are no JavaScript errors preventing rehydration
-
-### Migration from 1.0.0 Issues
-
-**Problem**: After upgrading from 1.0.0, drag operations don't work or events aren't fired.
-
-**Solutions**:
-1. Update your event handlers to use the new `orderedIds` structure:
-   ```javascript
-   // Old (1.0.0)
-   const { oldIndex, newIndex } = event.detail;
-   
-   // New (2.0.0)
-   const { orderedIds } = event.detail;
-   ```
-
-2. Update your Livewire component methods:
-   ```php
-   // Old (1.0.0) 
-   public function reorderItems(int $oldIndex, int $newIndex): void
-   
-   // New (2.0.0)
-   public function reorderItems(array $orderedIds): void
-   ```
-
-3. Clear any cached JavaScript/CSS files after upgrading
-
-### Race Condition Issues
-
-**Problem**: Items occasionally become unresponsive or duplicate during rapid interactions.
-
-**Solution**: Version 2.0.0 resolves race conditions between Livewire and Alpine.js. If you still experience issues:
-1. Check browser console for JavaScript errors
-2. Ensure you're not manually interfering with the `morph.updating` or `message.processed` hooks
-3. Verify no conflicting JavaScript is modifying DOM elements during updates
-
-## Debug Mode
-
-To enable verbose logging for troubleshooting:
-
-```javascript
-document.addEventListener('alpine:init', () => {
-    // Enable debug mode (add this before initializing the plugin)
-    window.LIVEWIRE_DRAG_DEBUG = true;
-    LivewireDragAndDrop(Alpine)
-})
+```blade
+@drag:end="$event.detail.toElement === $el && $wire.move( $event.detail )"
 ```
 
-This will output detailed console messages about drag operations, state changes, and event handling.
+### `fromContext` / `toContext` are `null`
 
-## Getting Additional Help
+Give each context an id with `data-drag-context-id`, an `id` attribute, or `{ id }` in the expression.
 
-If you're still experiencing issues:
+### `itemId` is `null` or the wrong type
 
-1. Check the [API Reference](api-reference.md) for detailed directive documentation
-2. Review the [Accessibility Guide](accessibility.md) for WCAG compliance information
-3. Consult the [Getting Started Guide](getting-started.md) for setup instructions
-4. Create an issue in the project repository with:
-   - Browser and version information
-   - Code examples that reproduce the issue
-   - Console error messages
-   - Expected vs actual behavior
+The `x-drag-item` expression is evaluated by Alpine. Numbers work as-is (`x-drag-item="{{ $task->id }}"`); strings need quotes (`x-drag-item="'{{ $task->uuid }}'"`). An empty `x-drag-item` has a `null` id.
 
-## Common Error Messages
+## Connected containers
 
-### "Cannot read property 'state' of null"
+### Items won't move into another list
 
-This typically indicates a drag context wasn't found. Ensure `x-drag-item` elements are wrapped in an `x-drag-context` container.
+- Both contexts need the **same group**. Group names from the `.group.name` modifier are lowercase; use `data-drag-group` for mixed case.
+- The target may be refusing the item: check for `data-drag-disabled`, a `disabled` expression, or an `accepts` callback returning `false`. Refusing contexts get `data-drag-disallowed` during the drag.
+- An `accepts` callback that throws refuses the drop; check the console.
 
-### "Livewire hook not found"
+### I can't drop into an empty list
 
-Verify Livewire is loaded and available before initializing the drag-and-drop plugin.
+Give empty contexts a size (`min-height`). If the items live in a child element (a column with a heading and a list), put `x-drag-context` on the list, or mark the list with `data-drag-items`. See [[Connected Containers#empty-containers]].
 
-### "Alpine directive not registered"
+### Moving a card also fires the board's events
 
-Make sure the plugin is initialized within the `alpine:init` event listener and before `Alpine.start()` is called.
+It shouldn't: events don't cross between nested contexts. If you see it, check that the card list is its own `x-drag-context` and that listeners are on the right element — a listener on the board element only hears the board's own events.
+
+## Livewire
+
+### The list jumps back after I drop
+
+Your server method saved a different order than the one shown, or didn't save it, and the next re-render restored the server's order. Check that you use the ids from `$event.detail` (`orderedIds`, or `toOrderedIds` for moves between contexts) and that the query in `render()` orders by the saved position.
+
+### Items in the wrong place after a re-render
+
+Add `wire:key` to every item **and** every context. Without keys, Livewire matches elements by position and can move the wrong ones.
+
+### Moved items stop updating from the server (2.0)
+
+2.0 marked moved items `__livewire_ignore` because its Livewire hook never ran. 2.1 fixes this. Upgrade — see [[Upgrading]].
+
+### Focus is lost after a keyboard drop
+
+The package restores focus to the item after a morph, matching by `wire:key` and then by item id. Make sure the item keeps the same `wire:key` and id across re-renders. Focus isn't restored if the user has already moved it elsewhere.
+
+## Touch devices
+
+### The page scrolls instead of dragging
+
+On touch, a drag starts after pressing and holding (200ms by default). Moving before then scrolls, on purpose. Increase or decrease `touchDelay` to suit your UI.
+
+### Don't set `touch-action: none` on items
+
+The package prevents scrolling itself once a touch drag has started. `touch-action: none` on items stops users from scrolling the page by swiping over a list.
+
+## Accessibility
+
+### Screen readers announce "Item" and "the list"
+
+Add `data-drag-label` to items and contexts.
+
+### Arrow keys don't move the item
+
+- The item itself must have focus (not a button inside it), and it must be picked up first with Space or Enter.
+- In a horizontal context the axes swap: Left/Right move within the list, Up/Down between containers.
+- Check that you haven't rebound the keys with `configure( { keys } )`.
+
+### Left/Right announce "There is no other container in that direction"
+
+You're at the first or last container in the group, or every container in that direction refuses the item.
+
+## Still stuck?
+
+Open an issue at <https://github.com/ArtisanPack-UI/livewire-drag-and-drop/issues> with the markup, your Alpine and Livewire versions, the browser, and the steps to reproduce the problem.
