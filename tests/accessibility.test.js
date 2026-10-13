@@ -1,529 +1,250 @@
 /**
- * Accessibility Tests for Livewire Drag and Drop
- * 
- * Tests keyboard navigation, ARIA attributes, screen reader announcements,
- * and focus management to ensure full accessibility compliance.
+ * Accessibility: ARIA decoration, the keyboard model (within and between
+ * contexts), translatable announcements, focus management, and axe checks.
  */
 
-import '../src/index.js';
-import { configureAxe } from 'jest-axe';
+import jestAxe from 'jest-axe';
+import { LivewireDragAndDrop, ids, liveText, mount, press, reset } from './helpers.js';
 
-// Create axe instance
-const axe = configureAxe({
-  rules: {
-    // Disable some rules that might not be relevant for this test environment
-    'color-contrast': { enabled: false },
-    'page-has-heading-one': { enabled: false }
-  }
+const { axe, toHaveNoViolations } = jestAxe;
+expect.extend(toHaveNoViolations);
+
+const $ = (selector) => document.querySelector(selector);
+const item = (id) => $(`[x-drag-item="'${id}'"]`);
+
+const board = `
+    <div x-drag-context data-drag-group="cards" data-drag-label="Packing" id="packing">
+        <div x-drag-item="'1042'" data-drag-label="Order 1042">Order 1042</div>
+        <div x-drag-item="'1043'" data-drag-label="Order 1043">Order 1043</div>
+    </div>
+    <div x-drag-context data-drag-group="cards" data-drag-label="QC" id="qc" data-drag-disabled></div>
+    <div x-drag-context data-drag-group="cards" data-drag-label="Shipped" id="shipped">
+        <div x-drag-item="'1001'" data-drag-label="Order 1001">Order 1001</div>
+        <div x-drag-item="'1002'" data-drag-label="Order 1002">Order 1002</div>
+    </div>
+`;
+
+describe('ARIA decoration', () => {
+    afterEach(reset);
+
+    test('contexts get role="group" and an accessible name from data-drag-label', async () => {
+        await mount(board);
+        expect($('#packing')).toHaveAttribute('role', 'group');
+        expect($('#packing')).toHaveAttribute('aria-label', 'Packing');
+    });
+
+    test('author-provided roles and labels are kept', async () => {
+        await mount(`
+            <ul x-drag-context role="list" aria-label="Mine" data-drag-label="Ignored" id="ctx">
+                <li x-drag-item="1" role="listitem" tabindex="-1" aria-describedby="hint">One</li>
+            </ul>
+            <p id="hint">Hint</p>
+        `);
+        expect($('#ctx')).toHaveAttribute('role', 'list');
+        expect($('#ctx')).toHaveAttribute('aria-label', 'Mine');
+        const li = $('li');
+        expect(li).toHaveAttribute('role', 'listitem');
+        expect(li).toHaveAttribute('tabindex', '-1');
+        expect(li.getAttribute('aria-describedby').split(' ')).toEqual(['hint', 'ldd-instructions-1']);
+    });
+
+    test('items are focusable buttons described by the instructions, without aria-grabbed', async () => {
+        await mount(board);
+        const order = item('1042');
+        expect(order).toHaveAttribute('tabindex', '0');
+        expect(order).toHaveAttribute('role', 'button');
+        expect(order).not.toHaveAttribute('aria-grabbed');
+        expect(order).not.toHaveAttribute('draggable');
+        const instructions = document.getElementById(order.getAttribute('aria-describedby'));
+        expect(instructions.textContent).toContain('Press Space or Enter to pick up');
+    });
+
+    test('instructions text is configurable per context', async () => {
+        await mount(`
+            <div x-drag-context data-drag-messages='{"instructions": "Pulsa Espacio para coger."}'>
+                <div x-drag-item="1">Uno</div>
+            </div>
+        `);
+        const instructions = document.getElementById($('[x-drag-item]').getAttribute('aria-describedby'));
+        expect(instructions.textContent).toBe('Pulsa Espacio para coger.');
+    });
+
+    test('has no axe violations at rest and while grabbed', async () => {
+        const root = await mount(board);
+        expect(await axe(root)).toHaveNoViolations();
+        press(item('1042'), ' ');
+        expect(await axe(root)).toHaveNoViolations();
+        press(item('1042'), 'Escape');
+    });
 });
 
-// Create a simple toHaveNoViolations matcher
-expect.extend({
-  toHaveNoViolations(received) {
-    if (received.violations && received.violations.length === 0) {
-      return {
-        message: () => `Expected element to have accessibility violations, but there were none.`,
-        pass: true,
-      };
-    } else {
-      return {
-        message: () => `Expected element to have no accessibility violations, but found: ${received.violations?.length || 0} violations.`,
-        pass: false,
-      };
-    }
-  }
+describe('keyboard model', () => {
+    afterEach(reset);
+
+    test('Space grabs and announces the position and container', async () => {
+        await mount(board);
+        press(item('1043'), ' ');
+        expect(item('1043')).toHaveAttribute('data-dragging');
+        expect(liveText()).toBe('Order 1043 grabbed. Position 2 of 2 in Packing.');
+    });
+
+    test('Up/Down move within the context; Home/End jump to the ends', async () => {
+        await mount(board);
+        const order = item('1001');
+        press(order, 'Enter');
+        press(order, 'ArrowDown');
+        expect(ids($('#shipped'))).toEqual(['Order 1002', 'Order 1001']);
+        expect(liveText()).toBe('Order 1001 moved to position 2 of 2 in Shipped.');
+        press(order, 'Home');
+        expect(ids($('#shipped'))).toEqual(['Order 1001', 'Order 1002']);
+        press(order, 'End');
+        expect(ids($('#shipped'))).toEqual(['Order 1002', 'Order 1001']);
+        expect(document.activeElement).toBe(order);
+    });
+
+    test('Right moves to the next allowed context in the group, skipping disabled ones', async () => {
+        await mount(board);
+        const order = item('1042');
+        press(order, ' ');
+        press(order, 'ArrowRight');
+        expect(ids($('#shipped'))).toEqual(['Order 1042', 'Order 1001', 'Order 1002']);
+        expect(ids($('#qc'))).toEqual([]);
+        expect(liveText()).toBe('Order 1042 moved to Shipped, position 1 of 3.');
+        expect(document.activeElement).toBe(order);
+
+        press(order, 'ArrowRight');
+        expect(liveText()).toBe('There is no other container in that direction.');
+
+        press(order, 'ArrowLeft');
+        expect(ids($('#packing'))).toEqual(['Order 1042', 'Order 1043']);
+    });
+
+    test('Space drops and dispatches drag:end describing the cross-context move', async () => {
+        await mount(board);
+        const ends = [];
+        $('#shipped').addEventListener('drag:end', (event) => ends.push(event.detail));
+        const order = item('1043');
+        press(order, ' ');
+        press(order, 'ArrowRight');
+        press(order, ' ');
+        expect(ends[0]).toMatchObject({ itemId: '1043', fromIndex: 1, toIndex: 1, toOrderedIds: ['1001', '1043', '1002'] });
+        expect(liveText()).toBe('Order 1043 dropped in Shipped, position 2 of 3.');
+        expect(order).not.toHaveAttribute('data-dragging');
+    });
+
+    test('Escape restores the original container and position and announces it', async () => {
+        await mount(board);
+        const order = item('1043');
+        press(order, ' ');
+        press(order, 'ArrowRight');
+        press(order, 'ArrowUp');
+        press(order, 'Escape');
+        expect(ids($('#packing'))).toEqual(['Order 1042', 'Order 1043']);
+        expect(ids($('#shipped'))).toEqual(['Order 1001', 'Order 1002']);
+        expect(liveText()).toBe('Move cancelled. Order 1043 returned to Packing, position 2 of 2.');
+        expect(document.activeElement).toBe(order);
+    });
+
+    test('moving focus to another element cancels a keyboard drag and restores the item', async () => {
+        await mount(`${board}<button id="elsewhere">Elsewhere</button>`);
+        const cancels = [];
+        $('#packing').addEventListener('drag:cancel', (event) => cancels.push(event.detail.reason));
+        const order = item('1042');
+        press(order, ' ');
+        press(order, 'ArrowRight');
+        $('#elsewhere').focus();
+
+        expect(cancels).toEqual(['blur']);
+        expect(ids($('#packing'))).toEqual(['Order 1042', 'Order 1043']);
+        expect(order).not.toHaveAttribute('data-dragging');
+        expect($('#shipped')).not.toHaveAttribute('data-drag-active');
+    });
+
+    test('ungrouped vertical lists keep Left/Right as within-list moves', async () => {
+        await mount('<div x-drag-context id="list"><div x-drag-item="1">a</div><div x-drag-item="2">b</div></div>');
+        const first = $('[x-drag-item="1"]');
+        press(first, ' ');
+        press(first, 'ArrowRight');
+        expect(ids($('#list'))).toEqual(['b', 'a']);
+    });
+
+    test('horizontal contexts use Left/Right within the list', async () => {
+        await mount(`
+            <div x-drag-context data-drag-group="row" data-drag-orientation="horizontal" id="r1"><span x-drag-item="1">a</span><span x-drag-item="2">b</span></div>
+            <div x-drag-context data-drag-group="row" data-drag-orientation="horizontal" id="r2"><span x-drag-item="3">c</span></div>
+        `);
+        const first = $('[x-drag-item="1"]');
+        press(first, ' ');
+        press(first, 'ArrowRight');
+        expect(ids($('#r1'))).toEqual(['b', 'a']);
+        press(first, 'ArrowDown');
+        expect(ids($('#r2'))).toEqual(['c', 'a']);
+    });
+
+    test('key bindings are configurable', async () => {
+        LivewireDragAndDrop.configure({ keys: { nextContainer: ['l'], previousContainer: 'h' } });
+        await mount(board);
+        const order = item('1042');
+        press(order, ' ');
+        press(order, 'l');
+        expect(ids($('#shipped'))[0]).toBe('Order 1042');
+        press(order, 'h');
+        expect(ids($('#packing'))[0]).toBe('Order 1042');
+        press(order, 'Escape');
+    });
+
+    test('arrow keys do nothing until an item is grabbed', async () => {
+        await mount(board);
+        const event = press(item('1042'), 'ArrowDown');
+        expect(event.defaultPrevented).toBe(false);
+        expect(ids($('#packing'))).toEqual(['Order 1042', 'Order 1043']);
+    });
+
+    test('keys pressed inside a control within an item are ignored', async () => {
+        await mount('<div x-drag-context><div x-drag-item="1">a <button id="btn">Edit</button></div></div>');
+        const event = press($('#btn'), ' ');
+        expect(event.defaultPrevented).toBe(false);
+        expect($('[x-drag-item]')).not.toHaveAttribute('data-dragging');
+    });
 });
 
-describe('Livewire Drag and Drop - Accessibility', () => {
-  let mockAlpine;
-  let contextElement;
-  let dragItem1;
-  let dragItem2;
-  let dragItem3;
+describe('translatable announcements', () => {
+    afterEach(reset);
 
-  beforeEach(() => {
-    // Set up Jest mocks for Alpine
-    global.Alpine.directive = jest.fn((name, callback) => {
-      global.Alpine._directives[name] = callback;
-    });
-    global.Alpine.nextTick = jest.fn((callback) => {
-      if (callback) callback();
-      return Promise.resolve();
-    });
-    
-    // Set up Jest mocks for Livewire
-    global.Livewire.hook = jest.fn((hookName, callback) => {
-      global.Livewire._hooks[hookName] = callback;
-    });
-    
-    // Set up DOM element mocks
-    Element.prototype.getBoundingClientRect = jest.fn(() => ({
-      top: 0,
-      left: 0,
-      bottom: 100,
-      right: 100,
-      width: 100,
-      height: 100,
-      x: 0,
-      y: 0
-    }));
-    
-    HTMLElement.prototype.focus = jest.fn();
-    
-    mockAlpine = global.Alpine;
-    
-    // Trigger auto-registration
-    document.dispatchEvent(new Event('alpine:init'));
-    document.dispatchEvent(new Event('livewire:init'));
-    
-    // Set up a typical drag context with items
-    contextElement = document.createElement('div');
-    contextElement.setAttribute('x-drag-context', '');
-    document.body.appendChild(contextElement);
-    
-    // Initialize the context
-    const dragContextDirective = mockAlpine._getDirective('drag-context');
-    dragContextDirective(contextElement);
-    
-    // Create drag items
-    dragItem1 = document.createElement('div');
-    dragItem1.setAttribute('x-drag-item', '');
-    dragItem1.setAttribute('wire:key', 'item-1');
-    dragItem1.textContent = 'Item 1';
-    contextElement.appendChild(dragItem1);
-    
-    dragItem2 = document.createElement('div');
-    dragItem2.setAttribute('x-drag-item', '');
-    dragItem2.setAttribute('wire:key', 'item-2');
-    dragItem2.textContent = 'Item 2';
-    contextElement.appendChild(dragItem2);
-    
-    dragItem3 = document.createElement('div');
-    dragItem3.setAttribute('x-drag-item', '');
-    dragItem3.setAttribute('wire:key', 'item-3');
-    dragItem3.textContent = 'Item 3';
-    contextElement.appendChild(dragItem3);
-    
-    // Initialize drag items
-    const dragItemDirective = mockAlpine._getDirective('drag-item');
-    const mockEvaluate = jest.fn(() => ({ id: 'item-1' }));
-    const mockCleanup = jest.fn();
-    
-    dragItemDirective(dragItem1, { expression: 'item' }, { 
-      evaluate: mockEvaluate, 
-      cleanup: mockCleanup 
-    });
-    
-    mockEvaluate.mockReturnValue({ id: 'item-2' });
-    dragItemDirective(dragItem2, { expression: 'item' }, { 
-      evaluate: mockEvaluate, 
-      cleanup: mockCleanup 
-    });
-    
-    mockEvaluate.mockReturnValue({ id: 'item-3' });
-    dragItemDirective(dragItem3, { expression: 'item' }, { 
-      evaluate: mockEvaluate, 
-      cleanup: mockCleanup 
-    });
-  });
-
-  describe('ARIA Attributes', () => {
-    test('should set correct initial ARIA attributes on drag items', () => {
-      expect(dragItem1.getAttribute('role')).toBe('button');
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
-      expect(dragItem1.getAttribute('tabindex')).toBe('0');
-      expect(dragItem1.draggable).toBe(true);
-    });
-
-    test('should update aria-grabbed when item is grabbed via keyboard', () => {
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
-    });
-
-    test('should reset aria-grabbed when item is dropped via keyboard', () => {
-      // First grab the item
-      const spaceKeyEvent1 = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent1);
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
-      
-      // Then drop it
-      const spaceKeyEvent2 = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent2);
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
-    });
-
-    test('should reset aria-grabbed when drag is cancelled', () => {
-      // First grab the item
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
-      
-      // Then cancel
-      const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
-      dragItem1.dispatchEvent(escapeKeyEvent);
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
-    });
-
-    test('should reset aria-grabbed after mouse drag operation', () => {
-      const dragStartEvent = createMockDragEvent('dragstart');
-      dragItem1.dispatchEvent(dragStartEvent);
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
-      
-      const dragEndEvent = createMockDragEvent('dragend');
-      dragItem1.dispatchEvent(dragEndEvent);
-      expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
-    });
-  });
-
-  describe('Keyboard Navigation', () => {
-    describe('Space and Enter Keys', () => {
-      test('should grab item with Space key', () => {
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        const preventDefaultSpy = jest.spyOn(spaceKeyEvent, 'preventDefault');
-        
-        dragItem1.dispatchEvent(spaceKeyEvent);
-        
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        expect(contextElement._dragContextState.isDragging).toBe(true);
-        expect(contextElement._dragContextState.draggedElement).toBe(dragItem1);
-        expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
-      });
-
-      test('should grab item with Enter key', () => {
-        const enterKeyEvent = createMockKeyboardEvent('keydown', 'Enter');
-        const preventDefaultSpy = jest.spyOn(enterKeyEvent, 'preventDefault');
-        
-        dragItem1.dispatchEvent(enterKeyEvent);
-        
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        expect(contextElement._dragContextState.isDragging).toBe(true);
-        expect(contextElement._dragContextState.draggedElement).toBe(dragItem1);
-        expect(dragItem1.getAttribute('aria-grabbed')).toBe('true');
-      });
-
-      test('should drop item with Space key when already grabbed', () => {
-        // First grab
-        const spaceKeyEvent1 = createMockKeyboardEvent('keydown', ' ');
-        dragItem1.dispatchEvent(spaceKeyEvent1);
-        expect(contextElement._dragContextState.isDragging).toBe(true);
-        
-        // Then drop
-        const spaceKeyEvent2 = createMockKeyboardEvent('keydown', ' ');
-        dragItem1.dispatchEvent(spaceKeyEvent2);
-        
-        expect(contextElement._dragContextState.isDragging).toBe(false);
-        expect(contextElement._dragContextState.draggedElement).toBe(null);
-        expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
-      });
-    });
-
-    describe('Escape Key', () => {
-      test('should cancel drag operation with Escape key', () => {
-        // First grab
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        dragItem1.dispatchEvent(spaceKeyEvent);
-        expect(contextElement._dragContextState.isDragging).toBe(true);
-        
-        // Then cancel
-        const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
-        dragItem1.dispatchEvent(escapeKeyEvent);
-        
-        expect(contextElement._dragContextState.isDragging).toBe(false);
-        expect(contextElement._dragContextState.draggedElement).toBe(null);
-        expect(contextElement._dragContextState.draggedData).toBe(null);
-        expect(dragItem1.getAttribute('aria-grabbed')).toBe('false');
-      });
-
-      test('should do nothing with Escape when not grabbed', () => {
-        const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
-        dragItem1.dispatchEvent(escapeKeyEvent);
-        
-        // State should remain unchanged
-        expect(contextElement._dragContextState.isDragging).toBe(false);
-        expect(contextElement._dragContextState.draggedElement).toBe(null);
-      });
-    });
-
-    describe('Arrow Key Navigation', () => {
-      test('should move item down with ArrowDown key', () => {
-        // First grab the item
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        dragItem1.dispatchEvent(spaceKeyEvent);
-        
-        // Move down
-        const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
-        const preventDefaultSpy = jest.spyOn(arrowDownEvent, 'preventDefault');
-        
-        dragItem1.dispatchEvent(arrowDownEvent);
-        
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        expect(HTMLElement.prototype.focus).toHaveBeenCalledWith();
-        
-        // dragItem1 should now be after dragItem2
-        expect(dragItem2.nextSibling).toBe(dragItem1);
-      });
-
-      test('should move item up with ArrowUp key', () => {
-        // First grab dragItem2 (middle item)
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        dragItem2.dispatchEvent(spaceKeyEvent);
-        
-        // Move up
-        const arrowUpEvent = createMockKeyboardEvent('keydown', 'ArrowUp');
-        const preventDefaultSpy = jest.spyOn(arrowUpEvent, 'preventDefault');
-        
-        dragItem2.dispatchEvent(arrowUpEvent);
-        
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        expect(HTMLElement.prototype.focus).toHaveBeenCalledWith();
-        
-        // dragItem2 should now be before dragItem1, so dragItem2's next sibling is dragItem1
-        expect(dragItem2.nextSibling).toBe(dragItem1);
-      });
-
-      test('should move item right with ArrowRight key', () => {
-        // First grab the item
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        dragItem1.dispatchEvent(spaceKeyEvent);
-        
-        // Move right (same as down)
-        const arrowRightEvent = createMockKeyboardEvent('keydown', 'ArrowRight');
-        const preventDefaultSpy = jest.spyOn(arrowRightEvent, 'preventDefault');
-        
-        dragItem1.dispatchEvent(arrowRightEvent);
-        
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        expect(dragItem2.nextSibling).toBe(dragItem1);
-      });
-
-      test('should move item left with ArrowLeft key', () => {
-        // First grab dragItem2 (middle item)
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        dragItem2.dispatchEvent(spaceKeyEvent);
-        
-        // Move left (same as up)
-        const arrowLeftEvent = createMockKeyboardEvent('keydown', 'ArrowLeft');
-        const preventDefaultSpy = jest.spyOn(arrowLeftEvent, 'preventDefault');
-        
-        dragItem2.dispatchEvent(arrowLeftEvent);
-        
-        expect(preventDefaultSpy).toHaveBeenCalled();
-        expect(dragItem2.nextSibling).toBe(dragItem1);
-      });
-
-      test('should wrap around when moving beyond bounds', () => {
-        // Grab last item (dragItem3, index 2 of 3 items)
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        dragItem3.dispatchEvent(spaceKeyEvent);
-        
-        // Move down (should wrap to beginning - target index should be 0)
-        const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
-        dragItem3.dispatchEvent(arrowDownEvent);
-        
-        // When moving down, dragItem3 should be placed after dragItem1's nextSibling
-        // Since dragItem1 is at index 0, dragItem3 should be between dragItem1 and dragItem2
-        expect(dragItem1.nextSibling).toBe(dragItem3);
-        expect(dragItem3.nextSibling).toBe(dragItem2);
-      });
-
-      test('should not move when not grabbed', () => {
-        const originalOrder = [dragItem1, dragItem2, dragItem3];
-        
-        const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
-        dragItem1.dispatchEvent(arrowDownEvent);
-        
-        // Order should remain unchanged
-        expect(contextElement.children[0]).toBe(originalOrder[0]);
-        expect(contextElement.children[1]).toBe(originalOrder[1]);
-        expect(contextElement.children[2]).toBe(originalOrder[2]);
-      });
-    });
-
-    test('should ignore unsupported keys', () => {
-      const unsupportedKeyEvent = createMockKeyboardEvent('keydown', 'a');
-      const preventDefaultSpy = jest.spyOn(unsupportedKeyEvent, 'preventDefault');
-      
-      dragItem1.dispatchEvent(unsupportedKeyEvent);
-      
-      expect(preventDefaultSpy).not.toHaveBeenCalled();
-      expect(contextElement._dragContextState.isDragging).toBe(false);
-    });
-  });
-
-  describe('Screen Reader Announcements', () => {
-    test('should announce when item is grabbed via keyboard', () => {
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      const ariaLiveRegion = document.querySelector('[aria-live]');
-      expect(ariaLiveRegion.textContent).toBe('Grabbed. Use arrow keys to move.');
-      expect(ariaLiveRegion.getAttribute('aria-live')).toBe('assertive');
-    });
-
-    test('should announce when item is dropped via keyboard', () => {
-      // First grab
-      const spaceKeyEvent1 = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent1);
-      
-      // Then drop
-      const spaceKeyEvent2 = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent2);
-      
-      const ariaLiveRegion = document.querySelector('[aria-live]');
-      expect(ariaLiveRegion.textContent).toBe('Dropped.');
-    });
-
-    test('should announce when drag is cancelled', () => {
-      // First grab
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      // Then cancel
-      const escapeKeyEvent = createMockKeyboardEvent('keydown', 'Escape');
-      dragItem1.dispatchEvent(escapeKeyEvent);
-      
-      const ariaLiveRegion = document.querySelector('[aria-live]');
-      expect(ariaLiveRegion.textContent).toBe('Drag cancelled.');
-    });
-
-    test('should announce position when item is moved', () => {
-      // First grab
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      // Move down
-      const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
-      dragItem1.dispatchEvent(arrowDownEvent);
-      
-      const ariaLiveRegion = document.querySelector('[aria-live]');
-      expect(ariaLiveRegion.textContent).toBe('Moved to position 2.');
-    });
-
-    test('should announce when item is grabbed via mouse', () => {
-      const dragStartEvent = createMockDragEvent('dragstart');
-      dragItem1.dispatchEvent(dragStartEvent);
-      
-      const ariaLiveRegion = document.querySelector('[aria-live]');
-      expect(ariaLiveRegion.textContent).toBe('Item grabbed.');
-      expect(ariaLiveRegion.getAttribute('aria-live')).toBe('assertive');
-    });
-
-    test('should announce when item is released via mouse', () => {
-      // First start drag
-      const dragStartEvent = createMockDragEvent('dragstart');
-      dragItem1.dispatchEvent(dragStartEvent);
-      
-      // Then end drag
-      const dragEndEvent = createMockDragEvent('dragend');
-      dragItem1.dispatchEvent(dragEndEvent);
-      
-      const ariaLiveRegion = document.querySelector('[aria-live]');
-      expect(ariaLiveRegion.textContent).toBe('Item released.');
-    });
-  });
-
-  describe('Focus Management', () => {
-    test('should maintain focus on item when moved via keyboard', () => {
-      // First grab
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      // Clear previous focus calls
-      HTMLElement.prototype.focus.mockClear();
-      
-      // Move item
-      const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
-      dragItem1.dispatchEvent(arrowDownEvent);
-      
-      expect(HTMLElement.prototype.focus).toHaveBeenCalledWith();
-    });
-
-    test('should have proper tabindex for keyboard navigation', () => {
-      expect(dragItem1.tabIndex).toBe(0);
-      expect(dragItem2.tabIndex).toBe(0);
-      expect(dragItem3.tabIndex).toBe(0);
-    });
-  });
-
-  describe('Axe Accessibility Testing', () => {
-    test('should have no accessibility violations in initial state', async () => {
-      const results = await axe(contextElement);
-      expect(results).toHaveNoViolations();
-    });
-
-    test('should have no accessibility violations when item is grabbed', async () => {
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      const results = await axe(contextElement);
-      expect(results).toHaveNoViolations();
-    });
-
-    test('should have no accessibility violations with aria-live region', async () => {
-      // Trigger aria-live region creation
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      const results = await axe(document.body);
-      expect(results).toHaveNoViolations();
-    });
-  });
-
-  describe('Edge Cases and Error Handling', () => {
-    test('should handle keyboard events when drag context is not found', () => {
-      // Create an isolated drag item without context
-      const isolatedItem = document.createElement('div');
-      isolatedItem.setAttribute('x-drag-item', '');
-      document.body.appendChild(isolatedItem);
-      
-      const dragItemDirective = mockAlpine._getDirective('drag-item');
-      dragItemDirective(isolatedItem, { expression: null }, { 
-        evaluate: jest.fn(), 
-        cleanup: jest.fn() 
-      });
-      
-      // Should not throw error
-      expect(() => {
-        const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-        isolatedItem.dispatchEvent(spaceKeyEvent);
-      }).not.toThrow();
-      
-      document.body.removeChild(isolatedItem);
-    });
-
-    test('should handle movement with single item', () => {
-      // Remove other items to have just one
-      contextElement.removeChild(dragItem2);
-      contextElement.removeChild(dragItem3);
-      
-      // Grab the single item
-      const spaceKeyEvent = createMockKeyboardEvent('keydown', ' ');
-      dragItem1.dispatchEvent(spaceKeyEvent);
-      
-      // Try to move - should wrap to same position
-      const arrowDownEvent = createMockKeyboardEvent('keydown', 'ArrowDown');
-      expect(() => {
-        dragItem1.dispatchEvent(arrowDownEvent);
-      }).not.toThrow();
-      
-      expect(contextElement.firstChild).toBe(dragItem1);
-    });
-
-    test('should handle empty drag context', () => {
-      // Remove all items
-      contextElement.innerHTML = '';
-      
-      const dragItemDirective = mockAlpine._getDirective('drag-item');
-      
-      // Should not throw when initializing item in empty context
-      expect(() => {
-        dragItemDirective(dragItem1, { expression: null }, { 
-          evaluate: jest.fn(), 
-          cleanup: jest.fn() 
+    test('global templates via configure()', async () => {
+        LivewireDragAndDrop.configure({
+            messages: {
+                grabbed: '{item} cogido. Posición {position} de {total} en {container}.',
+                movedToContainer: '{item} movido a {container}, posición {position} de {total}.',
+            },
         });
-      }).not.toThrow();
+        await mount(board);
+        const order = item('1042');
+        press(order, ' ');
+        expect(liveText()).toBe('Order 1042 cogido. Posición 1 de 2 en Packing.');
+        press(order, 'ArrowRight');
+        expect(liveText()).toBe('Order 1042 movido a Shipped, posición 1 de 3.');
+        press(order, 'Escape');
     });
-  });
+
+    test('per-context templates via data-drag-messages override the globals', async () => {
+        await mount(`
+            <div x-drag-context data-drag-messages='{"grabbed": "Saisi : {item}", "item": "Élément", "container": "la liste"}'>
+                <div x-drag-item="1">a</div>
+            </div>
+        `);
+        press($('[x-drag-item]'), ' ');
+        expect(liveText()).toBe('Saisi : Élément');
+        press($('[x-drag-item]'), 'Escape');
+        expect(liveText()).toBe('Move cancelled. Élément returned to la liste, position 1 of 1.');
+    });
+
+    test('invalid data-drag-messages JSON falls back to defaults', async () => {
+        const warn = console.warn;
+        console.warn = () => {};
+        await mount('<div x-drag-context data-drag-messages="{nope"><div x-drag-item="1">a</div></div>');
+        press($('[x-drag-item]'), ' ');
+        expect(liveText()).toBe('Item grabbed. Position 1 of 1 in the list.');
+        console.warn = warn;
+    });
 });
