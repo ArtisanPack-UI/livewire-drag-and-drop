@@ -17,13 +17,13 @@
     "a11y",
     "artisanpack-ui"
   ],
-  "homepage": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop#readme",
+  "homepage": "https://github.com/ArtisanPack-UI/livewire-drag-and-drop#readme",
   "bugs": {
-    "url": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop/issues"
+    "url": "https://github.com/ArtisanPack-UI/livewire-drag-and-drop/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop.git"
+    "url": "git+https://github.com/ArtisanPack-UI/livewire-drag-and-drop.git"
   },
   "license": "MIT",
   "author": "Jacob Martella",
