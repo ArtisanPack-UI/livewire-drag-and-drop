@@ -228,6 +228,7 @@ function beginDrag(start, x, y) {
     if (!current) {
         return;
     }
+    current.pointerId = start.pointerId;
     const previousUserSelect = document.body.style.userSelect;
     current.ghost = createGhost(start.item, start.x, start.y);
     document.body.style.userSelect = 'none';
@@ -240,6 +241,19 @@ function beginDrag(start, x, y) {
     window.getSelection?.()?.removeAllRanges?.();
     updatePointer(current, x, y);
     raf(() => autoScrollLoop(current));
+}
+
+/**
+ * Whether an event comes from a pointer other than the one that started the drag (or pending press).
+ *
+ * @since 2.1.0
+ *
+ * @param {PointerEvent}  event     Pointer event.
+ * @param {number|undefined} pointerId Initiating pointer id.
+ * @returns {boolean}
+ */
+function isOtherPointer(event, pointerId) {
+    return pointerId !== undefined && event.pointerId !== pointerId;
 }
 
 function clearPending() {
@@ -273,7 +287,9 @@ function onPointerDown(event) {
 function onPointerMove(event) {
     const current = currentSession();
     if (current && current.mode === 'pointer') {
-        updatePointer(current, event.clientX, event.clientY);
+        if (!isOtherPointer(event, current.pointerId)) {
+            updatePointer(current, event.clientX, event.clientY);
+        }
         return;
     }
     if (!pending || event.pointerId !== pending.pointerId) {
@@ -294,8 +310,10 @@ function onPointerMove(event) {
 
 function onPointerUp(event) {
     const current = currentSession();
-    clearPending();
-    if (current && current.mode === 'pointer') {
+    if (pending && !isOtherPointer(event, pending.pointerId)) {
+        clearPending();
+    }
+    if (current && current.mode === 'pointer' && !isOtherPointer(event, current.pointerId)) {
         updatePointer(current, event.clientX, event.clientY);
         suppressNextClick = true;
         setTimeout(() => {
@@ -305,10 +323,12 @@ function onPointerUp(event) {
     }
 }
 
-function onPointerCancel() {
+function onPointerCancel(event) {
     const current = currentSession();
-    clearPending();
-    if (current && current.mode === 'pointer') {
+    if (pending && !isOtherPointer(event, pending.pointerId)) {
+        clearPending();
+    }
+    if (current && current.mode === 'pointer' && !isOtherPointer(event, current.pointerId)) {
         cancelDrag('pointercancel');
     }
 }

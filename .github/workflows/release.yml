@@ -63,8 +63,17 @@ jobs:
           fi
           echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
+      # The publish and release steps skip work that a previous run already
+      # finished, so a failed release can be re-run through to sync-docs.
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: |
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already on npm; skipping publish."
+            exit 0
+          fi
+          npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -72,6 +81,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::notice::GitHub release $GITHUB_REF_NAME already exists; skipping."
+            exit 0
+          fi
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file "${{ steps.notes.outputs.notes_file }}"

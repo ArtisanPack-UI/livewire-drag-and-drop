@@ -163,14 +163,16 @@ describe('accept rules', () => {
     });
 
     test('an accepts callback that throws refuses the drop', async () => {
-        const error = console.error;
-        console.error = () => {};
-        await mountBoard(
-            board.replace('x-drag-context data-drag-group="cards" data-drag-context-id="shipped"', `x-drag-context="{ accepts: () => { throw new Error('boom') } }" data-drag-group="cards" data-drag-context-id="shipped"`),
-        );
-        mouseDrag(item('a'), item('c'), 10, 215);
-        expect(ids($('#shipped'))).toEqual(['c']);
-        console.error = error;
+        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            await mountBoard(
+                board.replace('x-drag-context data-drag-group="cards" data-drag-context-id="shipped"', `x-drag-context="{ accepts: () => { throw new Error('boom') } }" data-drag-group="cards" data-drag-context-id="shipped"`),
+            );
+            mouseDrag(item('a'), item('c'), 10, 215);
+            expect(ids($('#shipped'))).toEqual(['c']);
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     test('the group modifier connects contexts', async () => {

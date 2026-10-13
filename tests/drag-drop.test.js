@@ -226,6 +226,42 @@ describe('touch drag-and-drop', () => {
         expect(ids($('#done'))).toEqual(['d', 'a']);
     });
 
+    test('a second finger cannot move, drop, or cancel the active drag', async () => {
+        await mount(board);
+        stack([item('a'), item('b'), item('c')], 0);
+        stack([item('d')], 200);
+        jest.useFakeTimers();
+        const cancels = jest.fn();
+        $('#todo').addEventListener('drag:cancel', cancels);
+
+        pointer('pointerdown', item('a'), { x: 1, y: 1, pointerType: 'touch', pointerId: 1 });
+        jest.advanceTimersByTime(250);
+
+        pointAt(item('d'));
+        pointer('pointermove', document, { x: 10, y: 215, pointerType: 'touch', pointerId: 2 });
+        pointer('pointerup', document, { x: 10, y: 215, pointerType: 'touch', pointerId: 2 });
+        pointer('pointercancel', document, { pointerType: 'touch', pointerId: 2 });
+
+        expect(item('a')).toHaveAttribute('data-dragging');
+        expect(cancels).not.toHaveBeenCalled();
+        expect(ids($('#todo'))).toEqual(['a', 'b', 'c']);
+
+        pointer('pointermove', document, { x: 10, y: 215, pointerType: 'touch', pointerId: 1 });
+        pointer('pointerup', document, { x: 10, y: 215, pointerType: 'touch', pointerId: 1 });
+        expect(ids($('#done'))).toEqual(['d', 'a']);
+    });
+
+    test('a second finger lifting does not abort the first finger\'s press-and-hold', async () => {
+        await mount(board);
+        jest.useFakeTimers();
+
+        pointer('pointerdown', item('a'), { x: 1, y: 1, pointerType: 'touch', pointerId: 1 });
+        pointer('pointerup', document, { x: 50, y: 50, pointerType: 'touch', pointerId: 2 });
+        jest.advanceTimersByTime(250);
+
+        expect(item('a')).toHaveAttribute('data-dragging');
+    });
+
     test('a swipe before the hold delay scrolls instead of dragging', async () => {
         await mount(board);
         jest.useFakeTimers();
