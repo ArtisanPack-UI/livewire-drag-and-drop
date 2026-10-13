@@ -21,6 +21,9 @@ export default {
     '<rootDir>/tests/**/*.spec.js'
   ],
   
+  // Real-browser tests run separately (npm run test:browser)
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/browser/'],
+
   // Setup files to run before tests
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   

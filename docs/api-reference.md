@@ -1,615 +1,148 @@
 ---
-title: API Reference - Livewire Drag and Drop
+title: API Reference
 ---
 
 # API Reference
 
-Complete reference for ArtisanPack UI Livewire Drag and Drop directives, events, and methods.
-
-## Module Exports
-
-### Default Export
-
-The package exports a default function for manual plugin registration with Alpine.js.
-
-#### Syntax
-
-```javascript
-import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop'
-
-document.addEventListener('alpine:init', () => {
-    LivewireDragAndDrop(Alpine)
-})
-```
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `Alpine` | `object` | Yes | The Alpine.js instance to register directives with |
-
-### Named Exports
-
-For advanced usage, the package also exports individual functions:
-
-#### `registerDirectives(Alpine)`
-
-Registers the drag-and-drop directives (`x-drag-context`, `x-drag-item`) with Alpine.js.
-
-```javascript
-import { registerDirectives } from '@artisanpack-ui/livewire-drag-and-drop'
-
-document.addEventListener('alpine:init', () => {
-    registerDirectives(Alpine)
-})
-```
-
-#### `registerLivewireHooks(Livewire)`
-
-Registers Livewire lifecycle hooks for proper DOM morphing support.
-
-```javascript
-import { registerLivewireHooks } from '@artisanpack-ui/livewire-drag-and-drop'
-
-document.addEventListener('livewire:init', () => {
-    registerLivewireHooks(Livewire)
-})
-```
-
-**Note:** When using the default export `LivewireDragAndDrop(Alpine)`, it automatically calls both `registerDirectives` and `registerLivewireHooks` (if Livewire is available). The named exports are provided for advanced scenarios where granular control is needed.
-
-### Side-Effect Import
-
-For automatic registration, you can use a side-effect import:
-
-```javascript
-import '@artisanpack-ui/livewire-drag-and-drop'
-```
-
-This automatically registers the directives when Alpine.js initializes and Livewire hooks when Livewire initializes.
-
----
-
-## Alpine.js Directives
+## Directives
 
 ### `x-drag-context`
 
-Creates a drag-and-drop context container that manages draggable items and handles drop operations.
+Marks a container whose `x-drag-item` descendants can be reordered. Items of nested contexts belong to the nested context.
 
-#### Syntax
-
-```html
-<div x-drag-context="expression" [additional-attributes]>
-    <!-- draggable items -->
-</div>
+```blade
+<ul x-drag-context>…</ul>
+<ul x-drag-context="{ group: 'tasks', id: 'todo', disabled: full }">…</ul>
+<ul x-drag-context.group.tasks>…</ul>
 ```
 
-#### Parameters
+The expression is optional. When present it must evaluate to an object; it is re-evaluated every time the package checks the context, so it is reactive. Expression values win over attributes, which win over the `.group` modifier.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `expression` | `string` | Yes | JavaScript expression to handle drop events |
+| Attribute | Expression key | Description |
+|-----------|----------------|-------------|
+| `data-drag-context-id` | `id` | Id reported as `fromContext` / `toContext`. Falls back to the element `id`. |
+| `data-drag-group` | `group` | Contexts with the same group accept each other's items. Modifier: `.group.name` (lowercase). |
+| `data-drag-label` | `label` | Accessible name and `{container}` in announcements. |
+| `data-drag-disabled` | `disabled` | Accept nothing right now (`data-drag-disabled="false"` means enabled). |
+| — | `accepts` | `( detail ) => boolean` accept rule, called with `{ moveId, itemId, group, fromContext, fromIndex, toContext }`. |
+| `data-drag-messages` | `messages` | Announcement templates for this context (JSON in the attribute). |
+| `data-drag-orientation` | `orientation` | `vertical` or `horizontal`. Defaults to `horizontal` for a flex row, else `vertical`. |
+| `data-drag-items` *(on a child)* | — | Where items are inserted when the context is empty. |
 
-#### Event Handler Signature
-
-The expression receives an event object with the following detail structure:
-
-```javascript
-{
-    orderedIds: []  // Array of item IDs in their new order
-}
-```
-
-#### Attributes Added
-
-The directive automatically adds the following attributes to the container:
-
-- `role="application"` - Identifies as an interactive application
-- `aria-label="Drag and drop interface"` - Provides accessible description
-
-#### Created Elements
-
-- **Live Region**: A hidden `div` with `aria-live="polite"` for screen reader announcements
-- **Instructions**: Global drag instructions element (if not already present)
-
-#### Example Usage
-
-```html
-<div 
-    x-data="{ 
-        handleReorder(event) {
-            const { oldIndex, newIndex } = event.detail;
-            $wire.reorderItems(oldIndex, newIndex);
-        }
-    }"
-    x-drag-context="handleReorder($event.detail)"
-    @drag:end="handleReorder($event)"
-    class="drag-container"
->
-    <!-- draggable items -->
-</div>
-```
-
-#### Event Listeners
-
-The context container listens for these events:
-
-- `dragover` - Prevents default and sets drop effect
-- `drop` - Handles item dropping and calculates new position
-- `keydown` - Handles Escape key for canceling operations
-
----
+See [[Connected Containers]] and [[Configuration and Translations]].
 
 ### `x-drag-item`
 
-Designates an element as draggable within a drag context.
-
-#### Syntax
-
-```html
-<div x-drag-item="data" [additional-attributes]>
-    Item content
-</div>
+```blade
+<li x-drag-item="{{ $task->id }}" wire:key="task-{{ $task->id }}" data-drag-label="{{ $task->title }}">…</li>
 ```
 
-#### Parameters
+The expression is the item's id: `{{ $item->id }}`, `'{{ $uuid }}'`, `item.id`. It is reported as `itemId` and in `orderedIds`.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `data` | `object|string` | Yes | Data associated with the draggable item |
+| Attribute | Description |
+|-----------|-------------|
+| `data-drag-label` | The `{item}` placeholder in announcements. |
+| `data-drag-ignore` *(on a descendant)* | Pointer drags don't start from this element. |
 
-#### Data Object Structure
+Pointer drags never start from `input`, `textarea`, `select`, `option`, or `contenteditable` elements. Keyboard handling only applies when the item element itself has focus.
 
-The data parameter can be any serializable object. Common structure:
+## Attributes set by the package
 
-```typescript
-interface DragItemData {
-    id: number|string;      // Unique identifier
-    [key: string]: any;     // Additional properties
-}
-```
+| Element | Attribute | Notes |
+|---------|-----------|-------|
+| Context | `data-drag-context` | Marks an initialized context. |
+| Context | `role="group"` | Unless a role is already set. |
+| Context | `aria-label` | From the label, unless `aria-label` or `aria-labelledby` is set. |
+| Item | `tabindex="0"` | Unless a tabindex is already set. |
+| Item | `role="button"` | Unless a role is already set. |
+| Item | `aria-describedby` | Adds the instructions id to any existing ids. |
+| Item | `data-dragging` | While it is being dragged. |
+| Context | `data-drag-active` / `data-drag-disallowed` | During a drag, on contexts that can / can't receive the item. |
+| Context | `data-drag-over` | During a drag, on the current target. |
+| `<body>` | `data-drag-in-progress` | `pointer` or `keyboard` during a drag. |
 
-#### Attributes Added
-
-The directive automatically adds these attributes:
-
-- `draggable="true"` - Enables HTML5 drag and drop
-- `tabindex="0"` - Makes item keyboard focusable
-- `role="button"` - Identifies as an interactive button
-- `aria-grabbed="false"` - Indicates grab state for screen readers
-- `aria-describedby="drag-instructions"` - Links to instruction text
-
-#### Example Usage
-
-```html
-<div x-drag-item="{{ json_encode(['id' => 1, 'title' => 'Task 1']) }}" class="drag-item">
-    <span>Task 1</span>
-</div>
-```
-
-#### State Classes
-
-The following CSS classes are automatically added/removed:
-
-- `.is-grabbing` - Added during drag operations
-- Applied inline styles:
-  - `opacity: 0.5` - During drag
-  - `outline: 2px solid #007cba` - On focus
-
-#### Keyboard Navigation
-
-| Key | Action |
-|-----|--------|
-| `Space` or `Enter` | Grab/release item |
-| `ArrowUp` or `ArrowLeft` | Move item up/left |
-| `ArrowDown` or `ArrowRight` | Move item down/right |
-| `Escape` | Cancel drag operation |
-| `Tab` | Navigate between items |
-
-#### Event Listeners
-
-Each draggable item listens for:
-
-- `dragstart` - Initiates drag operation
-- `dragend` - Completes drag operation  
-- `keydown` - Handles keyboard navigation
-- `focus` - Adds focus styling
-- `blur` - Removes focus styling
-
----
+Elements the package creates: the live region (`[data-drag-live-region]`), the hidden instructions (`[data-drag-instructions]`), the floating copy (`[data-drag-ghost]`), and the drop indicator (`[data-drag-indicator]`). See [[Styling]].
 
 ## Events
 
-### `drag:end`
+Dispatched on context elements; they **do not bubble**. Details are JSON-safe; `itemElement`, `fromElement`, and `toElement` are available as non-enumerable properties. Indices are zero-based.
 
-Fired when a drag operation completes successfully, either via mouse/touch or keyboard.
+| Event | Dispatched on | Cancelable | Detail |
+|-------|---------------|------------|--------|
+| `drag:start` | source | yes — prevents the drag | `{ moveId, itemId, group, fromContext, fromIndex }` |
+| `drag:over` | target | no | `… , toContext, toIndex, allowed` |
+| `drag:drop` | target, then source | yes — refuses the drop | `… , toContext, toIndex`; set `detail.message` or call `detail.reject( message )` |
+| `drag:end` | target and source | no | `{ moveId, itemId, group, fromContext, toContext, fromIndex, toIndex, orderedIds, fromOrderedIds, toOrderedIds }` |
+| `drag:cancel` | source | no | `{ moveId, itemId, group, fromContext, fromIndex, reason }` |
+| `drag:revert` | original source and target | no | Same shape as `drag:end` |
 
-#### Event Detail
+`orderedIds` is the order of the context the event is dispatched on. `reason` is one of `escape`, `blur`, `outside`, `not-allowed`, `rejected`, `pointercancel`, or `removed`.
 
-```typescript
-interface DragEndEvent extends CustomEvent {
-    detail: {
-        group: string;          // Context group identifier
-        oldIndex: number;       // Original item position
-        newIndex: number;       // New item position
-        sourceElement: Element; // The dragged element
-        targetElement: Element; // Drop target element
-    };
-    bubbles: true;             // Event bubbles up the DOM
-}
+See [[Events and Lifecycle]] for when each fires and examples.
+
+## Alpine magic
+
+### `$dragRevert( itemId )`
+
+Reverts the item's most recent recorded move. Returns `true` if anything moved back.
+
+```blade
+@drag:end="$wire.moveCard( $event.detail ).then( ( ok ) => ok || $dragRevert( $event.detail.itemId ) )"
 ```
-
-#### Usage Examples
-
-**Basic Event Handling:**
-
-```javascript
-document.addEventListener('drag:end', (event) => {
-    const { oldIndex, newIndex } = event.detail;
-    console.log(`Item moved from ${oldIndex} to ${newIndex}`);
-});
-```
-
-**Livewire Integration:**
-
-```html
-<div 
-    x-data="{
-        handleDragEnd(event) {
-            const { orderedIds } = event.detail;
-            $wire.reorderItems(orderedIds);
-        }
-    }"
-    @drag:end="handleDragEnd($event)"
->
-    <!-- Draggable items -->
-</div>
-```
-
-**Multiple Context Handling:**
-
-```javascript
-document.addEventListener('drag:end', (event) => {
-    const { group, oldIndex, newIndex } = event.detail;
-    
-    switch (group) {
-        case 'todos':
-            updateTodos(oldIndex, newIndex);
-            break;
-        case 'kanban-todo':
-            moveKanbanCard('todo', oldIndex, newIndex);
-            break;
-    }
-});
-```
-
----
 
 ## JavaScript API
 
-### LivewireDragAndDrop()
-
-Main initialization function that registers Alpine.js directives.
-
-#### Syntax
+The default export, also available as `window.LivewireDragAndDrop`:
 
 ```javascript
-LivewireDragAndDrop(Alpine)
+import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop';
 ```
 
-#### Parameters
+### `LivewireDragAndDrop( Alpine )`
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `Alpine` | `object` | Yes | Alpine.js instance |
+Alpine plugin that registers `x-drag-context`, `x-drag-item`, and `$dragRevert`. Use it as `Alpine.plugin( LivewireDragAndDrop )` or call it directly. It is also called automatically on `alpine:init`, and calling it more than once on the same Alpine instance does nothing.
 
-#### Example
+### `LivewireDragAndDrop.configure( options )`
+
+Merges global settings and returns the resulting settings object.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `messages` | `object` | see [[Configuration and Translations]] | Announcement templates, merged per key. |
+| `keys` | `object` | see [[Configuration and Translations]] | Key bindings per action (string or array of `KeyboardEvent.key` values). |
+| `dragThreshold` | `number` | `5` | Pixels a mouse or pen must move before a drag starts. |
+| `touchDelay` | `number` | `200` | Milliseconds a touch must be held before a drag starts. |
+| `autoScroll` | `{ edge, speed }` | `{ edge: 48, speed: 20 }` | Auto-scroll edge size (px) and maximum speed (px per frame). |
+
+### `LivewireDragAndDrop.revert( moveId )`
+
+Reverts a committed move by its `moveId` (from `drag:end`). Returns `true` if anything moved back. Dispatches `drag:revert` and announces the `reverted` message. Later recorded moves of the same item are discarded.
+
+### `LivewireDragAndDrop.revertItem( itemId )`
+
+Reverts the item's most recent recorded move. Same as `$dragRevert`.
+
+### `LivewireDragAndDrop.itemId( element )`
+
+Returns the id of an `x-drag-item` element, or `null`.
+
+### `LivewireDragAndDrop.registerLivewireHooks( Livewire )`
+
+Registers the Livewire `morphed` hook that re-applies ARIA attributes, cancels drags whose item was removed, and restores focus after keyboard drops. It is called automatically on `livewire:init` (and immediately if `window.Livewire` already exists when the package loads), so you only need it if Livewire is not on `window`. Calling it more than once does nothing.
+
+### Named exports
+
+For compatibility with 2.0.1, the module also has named exports:
 
 ```javascript
-import Alpine from 'alpinejs'
-import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop'
-
-document.addEventListener('alpine:init', () => {
-    LivewireDragAndDrop(Alpine)
-})
-
-Alpine.start()
+import { registerDirectives, registerLivewireHooks } from '@artisanpack-ui/livewire-drag-and-drop';
 ```
 
----
+`registerDirectives` is the same function as the default export; `registerLivewireHooks` is `LivewireDragAndDrop.registerLivewireHooks`.
 
-## Accessibility Features
+## Builds
 
-### ARIA Attributes
-
-The package automatically manages these ARIA attributes:
-
-#### Container Attributes
-
-- `role="application"` - Indicates interactive application
-- `aria-label="Drag and drop interface"` - Describes the interface
-
-#### Item Attributes
-
-- `role="button"` - Identifies items as interactive buttons
-- `aria-grabbed="false|true"` - Indicates grab state
-- `aria-pressed="false|true"` - Indicates activation state  
-- `aria-describedby="drag-instructions"` - Links to instructions
-
-#### Live Region
-
-- `aria-live="polite"` - Announces changes to screen readers
-- `aria-atomic="true"` - Reads entire region on changes
-
-### Screen Reader Announcements
-
-The package provides automatic announcements for:
-
-- **Drag Start**: "Item grabbed for dragging"
-- **Drag End**: "Item released"
-- **Keyboard Movement**: "Moved to position X of Y"
-- **Cancel**: "Drag operation cancelled"
-
-### Focus Management
-
-- Items receive proper focus indicators
-- Focus remains on moved items after keyboard operations
-- Tab order is maintained during drag operations
-
----
-
-## CSS Classes
-
-### Required Classes
-
-These classes must be defined in your CSS:
-
-```css
-.sr-only {
-    position: absolute !important;
-    width: 1px !important;
-    height: 1px !important;
-    padding: 0 !important;
-    margin: -1px !important;
-    overflow: hidden !important;
-    clip: rect(0, 0, 0, 0) !important;
-    white-space: nowrap !important;
-    border: 0 !important;
-}
-```
-
-### Auto-Applied Classes
-
-The package automatically applies these classes:
-
-#### `.is-grabbing`
-
-Applied to items during drag operations. Recommended styles:
-
-```css
-.is-grabbing {
-    opacity: 0.7;
-    transform: scale(1.02);
-    z-index: 1000;
-    cursor: grabbing;
-}
-```
-
-### Recommended Styles
-
-#### Focus Indicators
-
-```css
-[x-drag-item]:focus {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-}
-```
-
-#### Drag Handles
-
-```css
-.drag-handle {
-    cursor: grab;
-    color: #6b7280;
-}
-
-.drag-handle:hover {
-    color: #374151;
-}
-```
-
-#### Container Styles
-
-```css
-[x-drag-context] {
-    position: relative;
-}
-
-[x-drag-context]:focus-within {
-    /* Highlight active container */
-}
-```
-
----
-
-## Advanced Usage
-
-### Custom Group Identifiers
-
-Use the `group` attribute to handle multiple drag contexts:
-
-```html
-<div x-drag-context="handleDrop" data-group="todos">
-    <!-- todo items -->
-</div>
-
-<div x-drag-context="handleDrop" data-group="in-progress">
-    <!-- in-progress items -->
-</div>
-```
-
-### Cross-Container Dragging
-
-Enable dragging between different containers:
-
-```html
-<!-- Source Container -->
-<div 
-    x-drag-context="handleSourceDrop"
-    @dragover.prevent
-    class="source-container"
->
-    <div x-drag-item="{ id: 1, type: 'task' }">Task 1</div>
-</div>
-
-<!-- Target Container -->
-<div 
-    x-drag-context="handleTargetDrop"
-    @dragover.prevent
-    @drop="handleCrossContainerDrop($event)"
-    class="target-container"
->
-    <!-- Drop zone -->
-</div>
-```
-
-### Custom Data Transfer
-
-Access the HTML5 DataTransfer API for advanced use cases:
-
-```html
-<div 
-    x-drag-item="{ id: 1, title: 'Task 1' }"
-    @dragstart="$event.dataTransfer.setData('text/html', $el.outerHTML)"
-    @dragstart="$event.dataTransfer.setDragImage(customImage, 0, 0)"
->
-    Task content
-</div>
-```
-
-### Performance Optimization
-
-For large lists, consider using intersection observers:
-
-```html
-<div x-data="{ visible: false }" x-intersect="visible = true">
-    <template x-if="visible">
-        <div x-drag-context="handleDrop">
-            <!-- Heavy content -->
-        </div>
-    </template>
-</div>
-```
-
----
-
-## Browser Compatibility
-
-### Required Features
-
-- **Drag and Drop API**: IE 11+, all modern browsers
-- **Custom Events**: IE 9+, all modern browsers  
-- **ARIA Attributes**: All browsers with screen reader support
-- **Alpine.js**: As per Alpine.js requirements
-
-### Feature Detection
-
-```javascript
-// Check for drag and drop support
-if ('draggable' in document.createElement('div')) {
-    // Drag and drop is supported
-    LivewireDragAndDrop(Alpine)
-} else {
-    // Provide fallback UI
-    console.warn('Drag and drop not supported')
-}
-```
-
-### Progressive Enhancement
-
-The package gracefully degrades when JavaScript is disabled:
-
-- Items remain focusable and interactive
-- Form elements continue to work normally
-- Content remains accessible to screen readers
-
----
-
-## Error Handling
-
-### Common Errors
-
-**Directive Registration Errors:**
-
-```javascript
-// Ensure Alpine is available before registration
-if (typeof Alpine !== 'undefined') {
-    LivewireDragAndDrop(Alpine)
-} else {
-    console.error('Alpine.js not found')
-}
-```
-
-**Context Validation:**
-
-```javascript
-// x-drag-item validates its context
-if (!dragContext || !dragContext._dragContext) {
-    console.warn('x-drag-item must be used within x-drag-context')
-    return
-}
-```
-
-### Debug Mode
-
-Enable detailed logging:
-
-```javascript
-// Add to your Alpine.js setup
-Alpine.store('debug', true)
-
-document.addEventListener('drag:end', (event) => {
-    if (Alpine.store('debug')) {
-        console.log('Drag operation details:', event.detail)
-    }
-})
-```
-
----
-
-## Migration Guide
-
-### From Version 0.x to 1.x
-
-**Breaking Changes:**
-
-1. **Event Structure**: `drag:end` now includes `sourceElement` and `targetElement`
-2. **CSS Classes**: `.dragging` renamed to `.is-grabbing`
-3. **ARIA Attributes**: Enhanced accessibility attributes
-
-**Update Steps:**
-
-```html
-<!-- Old (0.x) -->
-<div @drag:end="handleDrop($event.detail.oldIndex, $event.detail.newIndex)">
-
-<!-- New (2.x) -->
-<div @drag:end="handleDrop($event.detail.orderedIds)">
-```
-
-```css
-/* Old (0.x) */
-.dragging { opacity: 0.5; }
-
-/* New (1.x) */
-.is-grabbing { opacity: 0.7; transform: scale(1.02); }
-```
-
----
-
-**Related Documentation:**
-
-- [Getting Started Guide](Getting-Started) - Installation and basic usage
-- [Accessibility Guide](Accessibility) - Detailed accessibility information
-- [Examples](Examples) - Advanced implementation patterns
+| File | Format |
+|------|--------|
+| `dist/livewire-drag-and-drop.es.js` | ES module (`module` entry) |
+| `dist/livewire-drag-and-drop.umd.js` | UMD (`main` entry), exposes `window.LivewireDragAndDrop` |

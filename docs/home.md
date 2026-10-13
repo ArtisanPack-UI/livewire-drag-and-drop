@@ -4,101 +4,53 @@ title: Home
 
 # ArtisanPack UI Livewire Drag and Drop
 
-Welcome to the complete documentation for ArtisanPack UI's Livewire Drag and Drop package! This accessibility-first solution brings intuitive drag-and-drop functionality to your Laravel Livewire applications with full WCAG 2.1 AA compliance.
+`@artisanpack-ui/livewire-drag-and-drop` is an accessibility-first drag-and-drop utility for Livewire and Alpine.js. Reorder lists, move items between connected containers (kanban boards), and let mouse, touch, pen, and keyboard users all do the same things — with translatable screen reader announcements and a lifecycle you can veto and roll back.
 
-## 🚀 Quick Start
+## Start here
 
-New to ArtisanPack UI Livewire Drag and Drop? Start here:
+- [[Getting Started]] — install the package, register it, and build your first sortable list.
+- [[Upgrading]] — what changed between 2.0 and 2.1.
 
-### [📚 Getting Started Guide](Getting-Started)
-Your comprehensive introduction to installation, configuration, and basic implementation. Learn how to set up the package in your Laravel application and create your first drag-and-drop interface.
+## Guides
 
-**Topics covered:**
-- Prerequisites and system requirements
-- Installation via NPM or CDN
-- Alpine.js configuration
-- Basic usage examples
-- Initial styling setup
+- [[Connected Containers]] — move items between lists, build a kanban board, nest contexts, and refuse drops.
+- [[Events and Lifecycle]] — `drag:start` through `drag:end`, cancelling drops, and optimistic moves with revert.
+- [[Configuration and Translations]] — context options, global settings, key bindings, and translatable announcements.
+- [[Styling]] — the state attributes the package sets and how to style them.
+- [[Accessibility]] — keyboard model, ARIA, announcements, focus, and testing.
 
----
+## Reference
 
-## 📖 Documentation
+- [[API Reference]] — directives, attributes, events, and the JavaScript API.
+- [[Troubleshooting]] — common problems and how to fix them.
+- [[Contributing]] — set up the project, run the tests, and submit changes.
 
-### [🔧 API Reference](Api-Reference)
-Complete technical reference for all directives, events, and methods available in the package.
+## Features
 
-**What you'll find:**
-- `x-drag-context` directive documentation
-- `x-drag-item` directive reference  
-- Event handling and custom events
-- Method signatures and parameters
-- Advanced configuration options
+- **Connected containers** — contexts that share a group accept each other's items, including when empty.
+- **Mouse, touch, and pen** — Pointer Events based, so it works on tablets (press and hold to pick up on touch).
+- **Keyboard** — grab with Space/Enter, move within a list with Up/Down/Home/End, move between containers with Left/Right, drop with Space/Enter, cancel with Escape.
+- **Screen readers** — instructions via `aria-describedby`, every step announced in a live region, every message a translatable template.
+- **Lifecycle events** — `drag:start`, `drag:over`, a cancelable `drag:drop`, `drag:end`, `drag:cancel`, and `drag:revert`.
+- **Optimistic moves** — every move has a `moveId`; revert it after a server rejection.
+- **Livewire 3 and 4** — survives morphing; focus stays on the moved item.
+- **Nested contexts** — reorder columns while cards move between them, without events crossing.
+- **Auto-scroll** — scrolling parents (and the page) scroll while you drag near their edges.
 
-### [♿ Accessibility Guide](Accessibility)
-Comprehensive guide to the accessibility features and best practices for inclusive drag-and-drop interfaces.
+## Package information
 
-**Key topics:**
-- WCAG 2.1 AA compliance details
-- Screen reader support and testing
-- Keyboard navigation patterns
-- ARIA attributes and semantic markup
-- Live announcements and feedback
-- Accessibility testing strategies
+| | |
+|---|---|
+| npm package | [`@artisanpack-ui/livewire-drag-and-drop`](https://www.npmjs.com/package/@artisanpack-ui/livewire-drag-and-drop) |
+| Current version | 2.1.0 |
+| Requires | Alpine.js 3; Livewire 3 or 4 for the Livewire integration |
+| Browsers | Current Chrome, Edge, Firefox, Safari (macOS and iOS), and Chrome for Android |
+| License | MIT |
+| Repository | <https://github.com/ArtisanPack-UI/livewire-drag-and-drop> |
+| Changelog | [CHANGELOG.md](https://github.com/ArtisanPack-UI/livewire-drag-and-drop/blob/main/CHANGELOG.md) |
 
-### [🛠️ Troubleshooting](Troubleshooting)
-Solutions to common issues and debugging guidance for smooth implementation.
+## Getting help
 
-**Common solutions for:**
-- Installation and setup problems
-- Browser compatibility issues
-- Performance optimization
-- Integration challenges
-- Accessibility debugging
-- Custom styling conflicts
-
----
-
-## 🤝 Contributing
-
-### [💡 Contributing Guide](Contributing)
-Learn how to contribute to the ArtisanPack UI Livewire Drag and Drop project.
-
-**Guidelines for:**
-- Setting up the development environment
-- Code style and standards
-- Testing requirements
-- Pull request process
-- Bug reporting
-- Feature suggestions
-
----
-
-## 🌟 Key Features
-
-- **🎯 Accessibility-First**: Built with WCAG 2.1 AA compliance from the ground up
-- **⌨️ Full Keyboard Support**: Complete keyboard navigation with intuitive shortcuts
-- **🎨 Alpine.js Integration**: Native directives designed for the TALL stack
-- **🔄 Livewire Compatible**: Seamless backend integration with custom events
-- **📱 Touch Friendly**: Works across all devices and input methods
-- **🎪 Flexible Implementation**: Perfect for lists, kanban boards, and complex UIs
-- **🔊 Screen Reader Ready**: Comprehensive support for assistive technologies
-
-## 📦 Package Information
-
-- **Package Name**: `@artisanpack-ui/livewire-drag-and-drop`
-- **Compatibility**: Laravel 10.x/11.x, Livewire 3.x, Alpine.js 3.x
-- **License**: MIT
-- **Support**: PHP 8.1+
-
----
-
-## 🎯 Getting Help
-
-If you need assistance or have questions:
-
-1. **Check the documentation** - Start with the [Getting Started Guide](Getting-Started)
-2. **Review troubleshooting** - Common issues are covered in [Troubleshooting](Troubleshooting)
-3. **Search existing issues** - Check the project repository for known issues
-4. **Open a new issue** - Follow the guidelines in [Contributing Guide](Contributing)
-
-Welcome to building accessible, intuitive drag-and-drop interfaces with ArtisanPack UI! 🎉
+1. Read [[Getting Started]] and [[Troubleshooting]].
+2. Search the [existing issues](https://github.com/ArtisanPack-UI/livewire-drag-and-drop/issues).
+3. Open a new issue with the markup you are using, your Alpine and Livewire versions, and the steps to reproduce the problem.

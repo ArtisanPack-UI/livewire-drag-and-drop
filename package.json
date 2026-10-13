@@ -1,6 +1,6 @@
 {
   "name": "@artisanpack-ui/livewire-drag-and-drop",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "An accessibility-first drag-and-drop utility for Livewire and Alpine.js.",
   "keywords": [
     "livewire",
@@ -17,13 +17,13 @@
     "a11y",
     "artisanpack-ui"
   ],
-  "homepage": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop#readme",
+  "homepage": "https://github.com/ArtisanPack-UI/livewire-drag-and-drop#readme",
   "bugs": {
-    "url": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop/issues"
+    "url": "https://github.com/ArtisanPack-UI/livewire-drag-and-drop/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://gitlab.com/jacob-martella-web-design/artisanpack-ui/livewire-drag-and-drop.git"
+    "url": "git+https://github.com/ArtisanPack-UI/livewire-drag-and-drop.git"
   },
   "license": "MIT",
   "author": "Jacob Martella",
@@ -42,6 +42,7 @@
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "test:ci": "node --experimental-vm-modules node_modules/.bin/jest --ci --coverage --watchAll=false",
     "test:accessibility": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=accessibility",
+    "test:browser": "node --experimental-vm-modules node_modules/.bin/jest -c jest.browser.config.js",
     "build": "vite build",
     "prepublishOnly": "npm run build"
   },
