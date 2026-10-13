@@ -137,7 +137,10 @@ LivewireDragAndDrop.itemId = itemId;
 LivewireDragAndDrop.registerLivewireHooks = registerLivewireHooks;
 
 if (typeof window !== 'undefined') {
-    window.LivewireDragAndDrop = window.LivewireDragAndDrop || LivewireDragAndDrop;
+    // The UMD wrapper pre-assigns its exports object to this global; replace it with the plugin.
+    if (typeof window.LivewireDragAndDrop !== 'function') {
+        window.LivewireDragAndDrop = LivewireDragAndDrop;
+    }
 
     document.addEventListener('alpine:init', () => LivewireDragAndDrop(window.Alpine));
     document.addEventListener('livewire:init', () => registerLivewireHooks(window.Livewire));
@@ -148,3 +151,6 @@ if (typeof window !== 'undefined') {
 }
 
 export default LivewireDragAndDrop;
+
+// Named exports kept from 2.0.1 for backward compatibility.
+export { LivewireDragAndDrop as registerDirectives, registerLivewireHooks };

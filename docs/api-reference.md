@@ -130,6 +130,16 @@ Returns the id of an `x-drag-item` element, or `null`.
 
 Registers the Livewire `morphed` hook that re-applies ARIA attributes, cancels drags whose item was removed, and restores focus after keyboard drops. It is called automatically on `livewire:init` (and immediately if `window.Livewire` already exists when the package loads), so you only need it if Livewire is not on `window`. Calling it more than once does nothing.
 
+### Named exports
+
+For compatibility with 2.0.1, the module also has named exports:
+
+```javascript
+import { registerDirectives, registerLivewireHooks } from '@artisanpack-ui/livewire-drag-and-drop';
+```
+
+`registerDirectives` is the same function as the default export; `registerLivewireHooks` is `LivewireDragAndDrop.registerLivewireHooks`.
+
 ## Builds
 
 | File | Format |

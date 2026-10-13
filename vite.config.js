@@ -28,6 +28,9 @@ export default defineConfig({
       external: ['alpinejs'],
       
       output: {
+        // The entry has a default export plus the 2.0.1 named exports.
+        exports: 'named',
+
         // Global variable names for external dependencies in UMD build
         globals: {
           'alpinejs': 'Alpine'

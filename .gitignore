@@ -125,3 +125,6 @@ temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code settings
+.claude/settings.local.json

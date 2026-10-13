@@ -82,10 +82,10 @@ import LivewireDragAndDrop from '@artisanpack-ui/livewire-drag-and-drop';
 Alpine.plugin(LivewireDragAndDrop);
 ```
 
-The JavaScript API lives on the default export (also `window.LivewireDragAndDrop`). If you used the 2.0.1 named exports, switch to it:
+The JavaScript API lives on the default export (also `window.LivewireDragAndDrop`). The 2.0.1 named exports still work:
 
-| 2.0.1 | 2.1 |
-|-------|-----|
+| Named export | Equivalent |
+|--------------|------------|
 | `registerDirectives( Alpine )` | `LivewireDragAndDrop( Alpine )` or `Alpine.plugin( LivewireDragAndDrop )` |
 | `registerLivewireHooks( Livewire )` | `LivewireDragAndDrop.registerLivewireHooks( Livewire )` |
 

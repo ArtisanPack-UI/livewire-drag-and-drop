@@ -38,6 +38,8 @@ The drag engine has been rewritten on Pointer Events with delegated document lis
 * After a keyboard drop, focus stays on the moved item, including after a Livewire morph replaces it.
 * The package now works as an Alpine plugin (`Alpine.plugin( LivewireDragAndDrop )`) and still registers itself automatically on `alpine:init`.
 * The repository, issues, and npm metadata now point at GitHub.
+* The 2.0.1 named exports (`registerDirectives`, `registerLivewireHooks`) are kept; `registerDirectives` is now the same function as the default export.
+* The UMD build's `window.LivewireDragAndDrop` global is the plugin function (with `configure`, `revert`, and the rest of the API on it), not a module namespace object.
 
 ### Fixed
 
