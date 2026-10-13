@@ -42,6 +42,7 @@
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "test:ci": "node --experimental-vm-modules node_modules/.bin/jest --ci --coverage --watchAll=false",
     "test:accessibility": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=accessibility",
+    "test:browser": "node --experimental-vm-modules node_modules/.bin/jest -c jest.browser.config.js",
     "build": "vite build",
     "prepublishOnly": "npm run build"
   },

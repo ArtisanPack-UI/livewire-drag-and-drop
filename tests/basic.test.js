@@ -1,22 +1,22 @@
 /**
- * Basic Test to Verify Jest Setup
+ * Basic test to verify the Jest + Alpine harness.
  */
 
-describe('Basic Jest Setup', () => {
-  test('should work with basic assertions', () => {
-    expect(1 + 1).toBe(2);
-    expect(true).toBe(true);
-  });
+import { Alpine, LivewireDragAndDrop, mount, reset } from './helpers.js';
 
-  test('should have access to Jest functions', () => {
-    const mockFn = jest.fn();
-    mockFn('test');
-    expect(mockFn).toHaveBeenCalledWith('test');
-  });
+describe('Basic setup', () => {
+    afterEach(reset);
 
-  test('should have access to global objects', () => {
-    expect(global.Alpine).toBeDefined();
-    expect(global.Livewire).toBeDefined();
-    expect(global.createMockDragEvent).toBeDefined();
-  });
+    test('exposes the plugin with its API', () => {
+        expect(typeof LivewireDragAndDrop).toBe('function');
+        expect(typeof LivewireDragAndDrop.configure).toBe('function');
+        expect(typeof LivewireDragAndDrop.revert).toBe('function');
+        expect(window.LivewireDragAndDrop).toBe(LivewireDragAndDrop);
+    });
+
+    test('runs against a real Alpine instance', async () => {
+        await mount('<div x-drag-context><div x-drag-item="7">x</div></div>');
+        expect(Alpine.version).toBeDefined();
+        expect(document.querySelector('[x-drag-item]')._dragItemId).toBe(7);
+    });
 });
